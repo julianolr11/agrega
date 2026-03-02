@@ -388,17 +388,30 @@ const isTikTokUrl = (url) => {
 const fetchTikTokThumbnail = async (url) => {
   if (!isTikTokUrl(url)) return ''
 
-  const targets = [
+  const oembedEndpoints = [
     `https://www.tiktok.com/oembed?url=${encodeURIComponent(url)}`,
     `https://www.tiktok.com/api/oembed?url=${encodeURIComponent(url)}`,
+  ]
+
+  const targets = [
+    ...oembedEndpoints,
+    ...oembedEndpoints.map((endpoint) => `https://api.allorigins.win/raw?url=${encodeURIComponent(endpoint)}`),
   ]
 
   for (const target of targets) {
     try {
       const response = await fetch(target)
       if (!response.ok) continue
-      const data = await response.json()
-      const thumb = data?.thumbnail_url || ''
+
+      let data
+      try {
+        data = await response.json()
+      } catch (jsonError) {
+        const text = await response.text()
+        data = JSON.parse(text)
+      }
+
+      const thumb = data?.thumbnail_url || data?.thumbnailUrl || ''
       if (thumb) return thumb
     } catch (error) {
       // ignore and try next target
