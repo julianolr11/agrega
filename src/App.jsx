@@ -1226,7 +1226,10 @@ function App() {
   return (
     <div className="app-shell">
       <header className="topbar">
-        <div className="brand">Agrega</div>
+        <div className="brand" aria-label="Agrega">
+          <img src="/agrega-logo.png" alt="Agrega" />
+          <span>Agrega</span>
+        </div>
         <div className="topbar-right">
           <div className="badge">{links.length} {t('linksLabel')}</div>
           <button className="icon-button" aria-label={t('settings')} data-tooltip={t('settings')} onClick={openSettings}>
