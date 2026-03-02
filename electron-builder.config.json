@@ -9,6 +9,12 @@
     "electron/**/*",
     "package.json"
   ],
+  "extraResources": [
+    {
+      "from": "electron/assets",
+      "to": "assets"
+    }
+  ],
   "asar": true,
   "extraMetadata": {
     "main": "electron/main.js"

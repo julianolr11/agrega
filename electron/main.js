@@ -10,7 +10,9 @@ let splashWindow
 
 const isDev = process.env.ELECTRON_IS_DEV === 'true' || !app.isPackaged
 const distPath = path.join(__dirname, '../dist')
-const assetsPath = path.join(__dirname, 'assets')
+const assetsPath = app.isPackaged
+  ? path.join(process.resourcesPath, 'assets')
+  : path.join(__dirname, 'assets')
 const appIcon = path.join(assetsPath, 'agregaico.jpg')
 const splashLogo = path.join(assetsPath, 'agrega-logo.png')
 

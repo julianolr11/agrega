@@ -1228,7 +1228,6 @@ function App() {
       <header className="topbar">
         <div className="brand" aria-label="Agrega">
           <img src="/agrega-logo.png" alt="Agrega" />
-          <span>Agrega</span>
         </div>
         <div className="topbar-right">
           <div className="badge">{links.length} {t('linksLabel')}</div>
