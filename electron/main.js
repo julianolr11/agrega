@@ -71,6 +71,8 @@ const createMainWindow = async () => {
     ? process.env.VITE_DEV_SERVER_URL
     : `file://${path.join(distPath, 'index.html')}`
 
+  console.info('Loading renderer from', pageUrl)
+
   mainWindow.webContents.setWindowOpenHandler(({ url }) => {
     shell.openExternal(url)
     return { action: 'deny' }
@@ -81,6 +83,19 @@ const createMainWindow = async () => {
   } catch (error) {
     console.error('Failed to load renderer', error)
   }
+
+  mainWindow.webContents.on('did-finish-load', () => {
+    splashWindow?.close()
+    splashWindow = null
+    mainWindow.show()
+    if (!isDev) {
+      mainWindow.setMenuBarVisibility(false)
+    }
+  })
+
+  mainWindow.webContents.on('did-fail-load', (_event, errorCode, errorDesc, url) => {
+    console.error('Renderer failed to load', { errorCode, errorDesc, url })
+  })
 
   if (isDev) {
     mainWindow.webContents.openDevTools({ mode: 'detach' })
