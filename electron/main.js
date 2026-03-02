@@ -1,10 +1,14 @@
-import { app, BrowserWindow, Menu, shell } from 'electron'
+import { app, BrowserWindow, Menu, shell, session } from 'electron'
 import fs from 'node:fs'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
 
 const __filename = fileURLToPath(import.meta.url)
 const __dirname = path.dirname(__filename)
+
+// Ensure writable userData/cache paths (avoid cache errors when run from read-only dirs)
+const userDataPath = path.join(app.getPath('appData'), 'Agrega')
+app.setPath('userData', userDataPath)
 
 let mainWindow
 let splashWindow
@@ -130,6 +134,14 @@ const createMainWindow = async () => {
 
 app.whenReady().then(async () => {
   Menu.setApplicationMenu(null)
+
+  // Route Chromium cache to a writable location
+  try {
+    const cachePath = path.join(app.getPath('userData'), 'Cache')
+    await session.defaultSession.setCachePath(cachePath)
+  } catch (err) {
+    console.error('Failed to set cache path', err)
+  }
 
   createSplashWindow()
   await createMainWindow()
