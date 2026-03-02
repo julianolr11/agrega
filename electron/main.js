@@ -1,4 +1,5 @@
 import { app, BrowserWindow, Menu, shell } from 'electron'
+import fs from 'node:fs'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
 
@@ -16,8 +17,18 @@ const assetsPath = app.isPackaged
 const appIcon = path.join(assetsPath, 'agregaico.jpg')
 const splashLogo = path.join(assetsPath, 'agrega-logo.png')
 
+const loadSplashLogoDataUrl = () => {
+  try {
+    const bytes = fs.readFileSync(splashLogo)
+    return `data:image/png;base64,${bytes.toString('base64')}`
+  } catch (err) {
+    console.error('Failed to load splash logo, falling back to file path', err)
+    return `file://${splashLogo.replace(/\\/g, '/')}`
+  }
+}
+
 const createSplashWindow = () => {
-  const splashLogoUrl = `file://${splashLogo.replace(/\\/g, '/')}`
+  const splashLogoUrl = loadSplashLogoDataUrl()
 
   splashWindow = new BrowserWindow({
     width: 420,
