@@ -85,6 +85,7 @@ const createMainWindow = async () => {
   }
 
   mainWindow.webContents.on('did-finish-load', () => {
+    console.info('Renderer finished load')
     splashWindow?.close()
     splashWindow = null
     mainWindow.show()
@@ -95,7 +96,22 @@ const createMainWindow = async () => {
 
   mainWindow.webContents.on('did-fail-load', (_event, errorCode, errorDesc, url) => {
     console.error('Renderer failed to load', { errorCode, errorDesc, url })
+    splashWindow?.close()
+    splashWindow = null
+    mainWindow.show()
   })
+
+  // Fallback: ensure splash closes even if load events misfire
+  setTimeout(() => {
+    if (!mainWindow.isVisible()) {
+      console.warn('Fallback: showing main window after timeout')
+      mainWindow.show()
+    }
+    if (splashWindow) {
+      splashWindow.close()
+      splashWindow = null
+    }
+  }, 7000)
 
   if (isDev) {
     mainWindow.webContents.openDevTools({ mode: 'detach' })
