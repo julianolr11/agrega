@@ -39,7 +39,7 @@ const createMainWindow = async () => {
     backgroundColor: '#0b0f1a',
     title: 'Agrega',
     webPreferences: {
-      preload: path.join(__dirname, 'preload.js'),
+      preload: path.join(__dirname, 'preload.cjs'),
       contextIsolation: true,
       nodeIntegration: false,
       sandbox: false,
