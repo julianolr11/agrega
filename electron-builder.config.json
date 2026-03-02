@@ -1,0 +1,20 @@
+{
+  "appId": "com.agrega.app",
+  "productName": "Agrega",
+  "directories": {
+    "output": "release"
+  },
+  "files": [
+    "dist/**/*",
+    "electron/**/*",
+    "package.json"
+  ],
+  "asar": true,
+  "extraMetadata": {
+    "main": "electron/main.js"
+  },
+  "win": {
+    "target": "nsis",
+    "artifactName": "Agrega-Setup-${version}.${ext}"
+  }
+}
