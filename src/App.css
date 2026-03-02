@@ -8,6 +8,33 @@
     #0b0f1a;
 }
 
+html, body {
+  scrollbar-width: thin;
+  scrollbar-color: rgba(94, 237, 204, 0.75) rgba(7, 10, 18, 0.96);
+  background: #0b0f1a;
+}
+
+*::-webkit-scrollbar {
+  width: 12px;
+  height: 12px;
+}
+
+*::-webkit-scrollbar-track {
+  background: linear-gradient(180deg, rgba(12, 16, 26, 0.92), rgba(8, 12, 22, 0.88));
+  border-left: 1px solid var(--border-subtle);
+}
+
+*::-webkit-scrollbar-thumb {
+  background: linear-gradient(180deg, rgba(94, 237, 204, 0.9), rgba(58, 129, 255, 0.7));
+  border-radius: 12px;
+  border: 2px solid rgba(8, 12, 22, 0.95);
+  box-shadow: 0 8px 18px rgba(0, 0, 0, 0.4);
+}
+
+*::-webkit-scrollbar-thumb:hover {
+  background: linear-gradient(180deg, rgba(118, 255, 215, 1), rgba(74, 150, 255, 0.9));
+}
+
 .topbar {
   display: flex;
   align-items: center;
@@ -308,6 +335,64 @@
 
 .filter-menu input[type='radio'] {
   accent-color: var(--accent);
+}
+
+.filter-section {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.filter-section__title {
+  font-size: 12px;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  color: var(--text-muted);
+  margin: 0 0 2px;
+}
+
+.filter-divider {
+  border: 0;
+  border-top: 1px solid var(--border-subtle);
+  margin: 8px 0;
+}
+
+.filter-divider.subtle {
+  opacity: 0.6;
+}
+
+.filter-category-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+}
+
+.filter-category-row {
+  width: 100%;
+}
+
+.filter-category-btn {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 8px 10px;
+  border-radius: 10px;
+  border: 1px solid transparent;
+  background: transparent;
+  color: var(--text-primary);
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.filter-category-btn:hover {
+  background: rgba(255, 255, 255, 0.04);
+  border-color: var(--border-subtle);
+}
+
+.filter-category-btn.active {
+  background: rgba(94, 237, 204, 0.08);
+  border-color: rgba(94, 237, 204, 0.6);
 }
 
 .search-input {
@@ -841,6 +926,30 @@
   color: var(--text-primary);
   appearance: none;
 }
+
+.modal-divider {
+  border: 0;
+  border-top: 1px solid var(--border-subtle);
+  margin: 14px 0;
+}
+
+.backup-block {
+  padding: 12px;
+  border-radius: 12px;
+  border: 1px dashed var(--border-subtle);
+  background: rgba(255, 255, 255, 0.03);
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.backup-actions {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
 .toggle-row {
   flex-direction: row;
   align-items: center;

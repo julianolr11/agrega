@@ -20,12 +20,12 @@ const translations = {
     linksLabel: 'links',
     close: 'Fechar',
     settings: 'Configurações',
-    captureEyebrow: 'Cole o link',
+    captureEyebrow: 'Cole o link, imagem, texto ou escreva o que quiser guardar',
     captureTitle: 'Capture links sem atrito',
     captureSubtitle: 'Cole, clique no "+" e dê um nome rápido. Nós guardamos na categoria certa.',
     inputPlaceholder: 'https://...',
     addLinkErrorEmpty: 'Cole um link antes de adicionar.',
-    addLinkErrorInvalid: 'Formato de link inválido. Use http:// ou https://',
+    addLinkErrorInvalid: 'Digite um link válido ou escreva algo para salvar.',
     dashboardEyebrow: 'Dashboard',
     dashboardTitle: 'Seus links guardados',
     searchPlaceholder: 'Buscar por nome, categoria ou link',
@@ -34,6 +34,8 @@ const translations = {
     filterDateAsc: 'Data (mais antigos)',
     filterAlphaAsc: 'A–Z',
     filterAlphaDesc: 'Z–A',
+    filterSortTitle: 'Ordenar',
+    filterCategoryTitle: 'Categorias',
     editModeEnter: 'Entrar no modo edição',
     editModeExit: 'Sair do modo edição',
     emptyDashboard: 'Adicione o primeiro link para preencher seu painel.',
@@ -92,6 +94,13 @@ const translations = {
     reminderMoved: 'Lembrete movido',
     reminderLinkLabel: 'Escolha um link',
     reminderNone: 'Nenhum link cadastrado.',
+    backupTitle: 'Backup e restauração',
+    backupDescription: 'Exporte um .json com links, categorias e lembretes ou restaure um arquivo existente.',
+    backupExport: 'Exportar backup',
+    backupImport: 'Restaurar backup',
+    backupExported: 'Backup gerado',
+    backupRestored: 'Backup restaurado',
+    backupRestoreFail: 'Não foi possível restaurar o backup',
     remindersTitle: 'Lembretes',
     remindersSubtitle: 'Calendário expandido',
     remindersHint: 'Arraste um lembrete para outra data direto no calendário.',
@@ -157,12 +166,12 @@ const translations = {
     linksLabel: 'links',
     close: 'Close',
     settings: 'Settings',
-    captureEyebrow: 'Paste the link',
+    captureEyebrow: 'Paste link, image, text, or type what you want to save',
     captureTitle: 'Capture links effortlessly',
     captureSubtitle: 'Paste, hit "+" and name it quickly. We store it in the right category.',
     inputPlaceholder: 'https://...',
     addLinkErrorEmpty: 'Paste a link before adding.',
-    addLinkErrorInvalid: 'Invalid link format. Use http:// or https://',
+    addLinkErrorInvalid: 'Enter a valid link or type something to save.',
     dashboardEyebrow: 'Dashboard',
     dashboardTitle: 'Your saved links',
     searchPlaceholder: 'Search by name, category or link',
@@ -171,6 +180,8 @@ const translations = {
     filterDateAsc: 'Date (oldest)',
     filterAlphaAsc: 'A–Z',
     filterAlphaDesc: 'Z–A',
+    filterSortTitle: 'Sort',
+    filterCategoryTitle: 'Categories',
     editModeEnter: 'Enter edit mode',
     editModeExit: 'Exit edit mode',
     emptyDashboard: 'Add the first link to fill your dashboard.',
@@ -229,6 +240,13 @@ const translations = {
     reminderMoved: 'Reminder moved',
     reminderLinkLabel: 'Choose a link',
     reminderNone: 'No links saved.',
+    backupTitle: 'Backup and restore',
+    backupDescription: 'Export a .json with links, categories, and reminders or restore an existing file.',
+    backupExport: 'Export backup',
+    backupImport: 'Restore backup',
+    backupExported: 'Backup generated',
+    backupRestored: 'Backup restored',
+    backupRestoreFail: 'Could not restore backup',
     remindersTitle: 'Reminders',
     remindersSubtitle: 'Expanded calendar',
     remindersHint: 'Drag a reminder to another date directly on the calendar.',
@@ -293,6 +311,8 @@ const translations = {
 }
 
 const getTranslator = (language) => translations[language] || translations['pt-BR']
+
+const buildCollator = (language) => new Intl.Collator(language || 'pt-BR', { sensitivity: 'base', numeric: true })
 
 const IconExternal = () => (
   <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
@@ -516,6 +536,11 @@ const getTextSnippet = (value = '') => {
   return `${value.slice(0, limit)}...`
 }
 
+const parseDateSafe = (value) => {
+  const ts = Date.parse(value)
+  return Number.isFinite(ts) ? ts : 0
+}
+
 const isValidEmail = (value = '') => {
   const email = value.trim()
   if (!email) return false
@@ -553,8 +578,6 @@ const fileToDataUrl = (file) => new Promise((resolve, reject) => {
 })
 
 function App() {
-  const t = (key) => getTranslator(language)[key] || key
-
   const [linkInput, setLinkInput] = useState('')
   const [pendingUrl, setPendingUrl] = useState('')
   const [pendingImage, setPendingImage] = useState(null)
@@ -565,6 +588,10 @@ function App() {
   const [emailError, setEmailError] = useState('')
   const [language, setLanguage] = useState('pt-BR')
   const prevLanguage = useRef('pt-BR')
+  const t = useCallback((key) => getTranslator(language)[key] || key, [language])
+  const collator = useMemo(() => buildCollator(language), [language])
+  const filterRef = useRef(null)
+  const backupInputRef = useRef(null)
   const [showSettingsModal, setShowSettingsModal] = useState(false)
   const [settingsForm, setSettingsForm] = useState({ email: '', language: 'pt-BR' })
   const [settingsError, setSettingsError] = useState('')
@@ -629,6 +656,43 @@ function App() {
     setCategories(getDefaultCategories(savedLang))
     setFormData((prev) => ({ ...prev, category: getDefaultCategories(savedLang)[0] || '' }))
 
+    const savedDataRaw = localStorage.getItem('agrega_data')
+    if (savedDataRaw) {
+      try {
+        const parsed = JSON.parse(savedDataRaw)
+        let hydratedLinks = []
+
+        if (Array.isArray(parsed.categories)) {
+          setCategories((prev) => {
+            const merged = [...prev, ...parsed.categories.filter(Boolean)]
+            return Array.from(new Set(merged))
+          })
+        }
+
+        if (Array.isArray(parsed.links)) {
+          hydratedLinks = parsed.links.map((item) => normalizeLink(item))
+          setLinks(hydratedLinks)
+        }
+
+        const linkCategories = hydratedLinks.map((link) => link.category).filter(Boolean)
+        if (linkCategories.length > 0) {
+          setCategories((prev) => Array.from(new Set([...prev, ...linkCategories])))
+        }
+
+        if (Array.isArray(parsed.reminders)) {
+          const linkById = new Map(hydratedLinks.map((link) => [link.id, link]))
+          setReminders(parsed.reminders.map((item) => ({
+            id: item.id || (crypto.randomUUID ? crypto.randomUUID() : String(Date.now())),
+            subject: item.subject || '',
+            date: item.date || new Date().toISOString().slice(0, 10),
+            link: item.link?.id ? (linkById.get(item.link.id) || null) : null,
+          })))
+        }
+      } catch (error) {
+        // ignore corrupted stored backup
+      }
+    }
+
     if (emailConfig.publicKey) {
       emailjs.init({ publicKey: emailConfig.publicKey })
     }
@@ -663,6 +727,41 @@ function App() {
     prevLanguage.current = language
   }, [language, links])
 
+  useEffect(() => {
+    const payload = {
+      version: 1,
+      categories,
+      links,
+      reminders,
+      language,
+    }
+    localStorage.setItem('agrega_data', JSON.stringify(payload))
+  }, [categories, links, reminders, language])
+
+  useEffect(() => {
+    if (!filterOpen) return undefined
+
+    const handleClickOutside = (event) => {
+      if (filterRef.current && !filterRef.current.contains(event.target)) {
+        setFilterOpen(false)
+      }
+    }
+
+    const handleEscape = (event) => {
+      if (event.key === 'Escape') {
+        setFilterOpen(false)
+      }
+    }
+
+    document.addEventListener('mousedown', handleClickOutside)
+    document.addEventListener('keydown', handleEscape)
+
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside)
+      document.removeEventListener('keydown', handleEscape)
+    }
+  }, [filterOpen])
+
   const refreshMercadoLivreThumb = async (linkId, url) => {
     const mlThumb = await fetchMercadoLivreThumbnail(url)
     if (!mlThumb) return
@@ -692,37 +791,53 @@ function App() {
       : links.filter((link) => link.category === selectedCategory)
 
     const term = searchQuery.trim().toLowerCase()
-    if (!term) return filteredByCategory
-
-    const filteredBySearch = filteredByCategory.filter((link) => {
-      const urlPart = link.type === 'image'
-        ? t('defaultImageTitle')
-        : link.type === 'text'
-          ? `${link.content || ''} ${t('defaultTextTitle')}`
-          : link.url
-      const haystack = `${link.title} ${link.category} ${urlPart}`.toLowerCase()
-      return haystack.includes(term)
-    })
+    const filteredBySearch = !term
+      ? filteredByCategory
+      : filteredByCategory.filter((link) => {
+        const urlPart = link.type === 'image'
+          ? t('defaultImageTitle')
+          : link.type === 'text'
+            ? `${link.content || ''} ${t('defaultTextTitle')}`
+            : link.url
+        const haystack = `${link.title} ${link.category} ${urlPart}`.toLowerCase()
+        return haystack.includes(term)
+      })
 
     const sorted = [...filteredBySearch]
     sorted.sort((a, b) => {
+      const categoryCompare = collator.compare(a.category || '', b.category || '')
+      if (categoryCompare !== 0) return categoryCompare
+
+      const aDate = parseDateSafe(a.createdAt)
+      const bDate = parseDateSafe(b.createdAt)
+      const titleCompare = collator.compare(a.title || '', b.title || '')
+
       if (filterOption === 'date_desc') {
-        return new Date(b.createdAt) - new Date(a.createdAt)
+        if (bDate !== aDate) return bDate - aDate
+        if (titleCompare !== 0) return titleCompare
+        return (a.id || '').localeCompare(b.id || '')
       }
+
       if (filterOption === 'date_asc') {
-        return new Date(a.createdAt) - new Date(b.createdAt)
+        if (aDate !== bDate) return aDate - bDate
+        if (titleCompare !== 0) return titleCompare
+        return (a.id || '').localeCompare(b.id || '')
       }
-      if (filterOption === 'alpha_asc') {
-        return a.title.localeCompare(b.title)
-      }
+
       if (filterOption === 'alpha_desc') {
-        return b.title.localeCompare(a.title)
+        if (titleCompare !== 0) return -titleCompare
+        if (bDate !== aDate) return bDate - aDate
+        return (a.id || '').localeCompare(b.id || '')
       }
-      return 0
+
+      // default alpha_asc
+      if (titleCompare !== 0) return titleCompare
+      if (bDate !== aDate) return bDate - aDate
+      return (a.id || '').localeCompare(b.id || '')
     })
 
     return sorted
-  }, [links, selectedCategory, searchQuery, filterOption])
+  }, [links, selectedCategory, searchQuery, filterOption, collator, t])
 
   const handleAddClick = () => {
     const trimmed = linkInput.trim()
@@ -730,12 +845,12 @@ function App() {
       setError(t('addLinkErrorEmpty'))
       return
     }
-    if (!isValidUrl(trimmed)) {
-      setError(t('addLinkErrorInvalid'))
-      return
+    if (isValidUrl(trimmed)) {
+      beginLinkFlow(trimmed)
+    } else {
+      beginTextFlow(trimmed)
     }
-
-    beginLinkFlow(trimmed)
+    setError('')
   }
 
   const handleSaveEmailConfig = (event) => {
@@ -778,6 +893,87 @@ function App() {
     setShowSettingsModal(false)
     setSettingsError('')
     showAction(t('settingsSaved'))
+  }
+
+  const handleExportBackup = () => {
+    try {
+      const payload = {
+        version: 1,
+        exportedAt: new Date().toISOString(),
+        language,
+        categories,
+        links,
+        reminders,
+      }
+
+      const blob = new Blob([JSON.stringify(payload, null, 2)], { type: 'application/json' })
+      const url = URL.createObjectURL(blob)
+      const anchor = document.createElement('a')
+      anchor.href = url
+      anchor.download = `agrega-backup-${new Date().toISOString().slice(0, 10)}.json`
+      anchor.click()
+      URL.revokeObjectURL(url)
+      showAction(t('backupExported'))
+      setSettingsError('')
+    } catch (error) {
+      setSettingsError(t('backupRestoreFail'))
+    }
+  }
+
+  const handleImportBackupClick = () => {
+    setSettingsError('')
+    backupInputRef.current?.click()
+  }
+
+  const handleImportBackup = async (event) => {
+    const file = event.target.files?.[0]
+    if (!file) return
+
+    try {
+      const text = await file.text()
+      const parsed = JSON.parse(text)
+
+      const targetLanguage = parsed.language || language
+      if (parsed.language) {
+        setLanguage(targetLanguage)
+        setSettingsForm((prev) => ({ ...prev, language: targetLanguage }))
+      }
+
+      const importedCategories = Array.isArray(parsed.categories) ? parsed.categories.filter(Boolean) : []
+      const importedLinks = Array.isArray(parsed.links) ? parsed.links.map((item) => normalizeLink(item)) : []
+      const linkById = new Map(importedLinks.map((link) => [link.id, link]))
+      const importedReminders = Array.isArray(parsed.reminders)
+        ? parsed.reminders.map((item) => {
+          const linkId = item.link?.id
+          const linked = linkId ? linkById.get(linkId) : null
+          return {
+            id: item.id || (crypto.randomUUID ? crypto.randomUUID() : String(Date.now())),
+            subject: item.subject || '',
+            date: item.date || new Date().toISOString().slice(0, 10),
+            link: linked || null,
+          }
+        })
+        : []
+
+      const derivedCategories = Array.from(new Set([
+        ...getDefaultCategories(targetLanguage),
+        ...importedCategories,
+        ...importedLinks.map((link) => link.category).filter(Boolean),
+      ]))
+
+      setCategories(derivedCategories)
+      setLinks(importedLinks)
+      setReminders(importedReminders)
+
+      setSelectedCategory('all')
+      setView('dashboard')
+      showAction(t('backupRestored'))
+      setSettingsError('')
+    } catch (error) {
+      setSettingsError(t('backupRestoreFail'))
+    } finally {
+      event.target.value = ''
+    }
   }
 
   const beginLinkFlow = (url) => {
@@ -953,6 +1149,36 @@ function App() {
   const showCardAction = (id, message) => {
     setCardMessage({ id, text: message })
     setTimeout(() => setCardMessage({ id: '', text: '' }), 1500)
+  }
+
+  const normalizeLink = (item) => {
+    const targetType = item.type || 'link'
+    const urlValue = targetType === 'text' ? (item.content || item.url || '') : (item.url || '')
+    const defaultTitle = targetType === 'image'
+      ? t('defaultImageTitle')
+      : targetType === 'text'
+        ? t('defaultTextTitle')
+        : t('defaultLinkTitle')
+
+    return {
+      id: item.id || (crypto.randomUUID ? crypto.randomUUID() : String(Date.now())),
+      title: item.title || defaultTitle,
+      url: urlValue,
+      category: item.category || t('defaultCategory'),
+      createdAt: item.createdAt || new Date().toISOString(),
+      thumbnail: targetType === 'image'
+        ? (item.imageData || item.thumbnail || urlValue)
+        : targetType === 'text'
+          ? ''
+          : (item.thumbnail || (urlValue ? getThumbnailUrl(urlValue) : '')),
+      favicon: targetType === 'image' || targetType === 'text'
+        ? ''
+        : (item.favicon || (urlValue ? getFaviconUrl(urlValue) : '')),
+      type: targetType,
+      content: targetType === 'text' ? (item.content || urlValue) : (item.content || ''),
+      imageData: item.imageData || '',
+      mimeType: item.mimeType || 'image/png',
+    }
   }
 
   const handleCopy = async (link) => {
@@ -1388,7 +1614,7 @@ function App() {
                       onChange={(event) => setSearchQuery(event.target.value)}
                       placeholder={t('searchPlaceholder')}
                     />
-                    <div className="filter-wrapper">
+                    <div className="filter-wrapper" ref={filterRef}>
                       <button
                         className="icon-button"
                         aria-label="Filtros"
@@ -1399,46 +1625,65 @@ function App() {
                       </button>
                       {filterOpen && (
                         <div className="filter-menu">
-                          <label>
-                            <input
-                              type="radio"
-                              name="filter"
-                              value="date_desc"
-                              checked={filterOption === 'date_desc'}
-                              onChange={(event) => setFilterOption(event.target.value)}
-                            />
-                            {t('filterDateDesc')}
-                          </label>
-                          <label>
-                            <input
-                              type="radio"
-                              name="filter"
-                              value="date_asc"
-                              checked={filterOption === 'date_asc'}
-                              onChange={(event) => setFilterOption(event.target.value)}
-                            />
-                            {t('filterDateAsc')}
-                          </label>
-                          <label>
-                            <input
-                              type="radio"
-                              name="filter"
-                              value="alpha_asc"
-                              checked={filterOption === 'alpha_asc'}
-                              onChange={(event) => setFilterOption(event.target.value)}
-                            />
-                            {t('filterAlphaAsc')}
-                          </label>
-                          <label>
-                            <input
-                              type="radio"
-                              name="filter"
-                              value="alpha_desc"
-                              checked={filterOption === 'alpha_desc'}
-                              onChange={(event) => setFilterOption(event.target.value)}
-                            />
-                            {t('filterAlphaDesc')}
-                          </label>
+                          <div className="filter-section">
+                            <p className="filter-section__title">{t('filterSortTitle')}</p>
+                            <label>
+                              <input
+                                type="radio"
+                                name="filter"
+                                value="date_desc"
+                                checked={filterOption === 'date_desc'}
+                                onChange={(event) => {
+                                  setFilterOption(event.target.value)
+                                  setFilterOpen(false)
+                                }}
+                              />
+                              {t('filterDateDesc')}
+                            </label>
+                            <label>
+                              <input
+                                type="radio"
+                                name="filter"
+                                value="date_asc"
+                                checked={filterOption === 'date_asc'}
+                                onChange={(event) => {
+                                  setFilterOption(event.target.value)
+                                  setFilterOpen(false)
+                                }}
+                              />
+                              {t('filterDateAsc')}
+                            </label>
+                            <label>
+                              <input
+                                type="radio"
+                                name="filter"
+                                value="alpha_asc"
+                                checked={filterOption === 'alpha_asc'}
+                                onChange={(event) => {
+                                  setFilterOption(event.target.value)
+                                  setFilterOpen(false)
+                                }}
+                              />
+                              {t('filterAlphaAsc')}
+                            </label>
+                            <label>
+                              <input
+                                type="radio"
+                                name="filter"
+                                value="alpha_desc"
+                                checked={filterOption === 'alpha_desc'}
+                                onChange={(event) => {
+                                  setFilterOption(event.target.value)
+                                  setFilterOpen(false)
+                                }}
+                              />
+                              {t('filterAlphaDesc')}
+                            </label>
+                          </div>
+
+                          <hr className="filter-divider" />
+
+                          {/* Category filters removed per request */}
                         </div>
                       )}
                     </div>
@@ -1616,6 +1861,10 @@ function App() {
           onChange={setSettingsForm}
           onClose={handleCloseSettingsModal}
           onSubmit={handleSaveSettings}
+          onExportBackup={handleExportBackup}
+          onImportBackup={handleImportBackupClick}
+          importInputRef={backupInputRef}
+          onImportFile={handleImportBackup}
           t={t}
         />
       )}
@@ -1903,7 +2152,7 @@ function EmailSetupModal({ formData, errorMessage, onChange, onClose, onSubmit, 
   )
 }
 
-function SettingsModal({ formData, errorMessage, onChange, onClose, onSubmit, t }) {
+function SettingsModal({ formData, errorMessage, onChange, onClose, onSubmit, onExportBackup, onImportBackup, importInputRef, onImportFile, t }) {
   return (
     <div className="modal-backdrop" role="dialog" aria-modal="true">
       <div className="modal">
@@ -1946,6 +2195,30 @@ function SettingsModal({ formData, errorMessage, onChange, onClose, onSubmit, t 
             <button type="submit" className="primary">
               {t('save')}
             </button>
+          </div>
+
+          <hr className="modal-divider" />
+
+          <div className="backup-block">
+            <div>
+              <p className="eyebrow">{t('backupTitle')}</p>
+              <p className="muted">{t('backupDescription')}</p>
+            </div>
+            <div className="backup-actions">
+              <button type="button" className="ghost" onClick={onExportBackup}>
+                {t('backupExport')}
+              </button>
+              <button type="button" className="primary" onClick={onImportBackup}>
+                {t('backupImport')}
+              </button>
+              <input
+                type="file"
+                accept="application/json"
+                ref={importInputRef}
+                onChange={onImportFile}
+                style={{ display: 'none' }}
+              />
+            </div>
           </div>
         </form>
       </div>
