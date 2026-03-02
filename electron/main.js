@@ -1,4 +1,4 @@
-import { app, BrowserWindow, shell } from 'electron'
+import { app, BrowserWindow, Menu, shell } from 'electron'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
 
@@ -38,6 +38,7 @@ const createMainWindow = async () => {
     show: false,
     backgroundColor: '#0b0f1a',
     title: 'Agrega',
+    autoHideMenuBar: true,
     webPreferences: {
       preload: path.join(__dirname, 'preload.cjs'),
       contextIsolation: true,
@@ -77,6 +78,8 @@ const createMainWindow = async () => {
 }
 
 app.whenReady().then(async () => {
+  Menu.setApplicationMenu(null)
+
   createSplashWindow()
   await createMainWindow()
 
