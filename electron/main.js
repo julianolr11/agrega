@@ -14,7 +14,7 @@ const distPath = path.join(__dirname, '../dist')
 const assetsPath = app.isPackaged
   ? path.join(process.resourcesPath, 'assets')
   : path.join(__dirname, 'assets')
-const appIcon = path.join(assetsPath, 'agregaico.jpg')
+const appIcon = path.join(assetsPath, 'agregaico.ico')
 const splashLogo = path.join(assetsPath, 'agrega-logo.png')
 
 const loadSplashLogoDataUrl = () => {

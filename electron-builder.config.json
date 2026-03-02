@@ -2,7 +2,7 @@
   "appId": "com.agrega.app",
   "productName": "Agrega",
   "directories": {
-    "output": "release"
+    "output": "dist"
   },
   "files": [
     "dist/**/*",
@@ -21,6 +21,7 @@
   },
   "win": {
     "target": "nsis",
-    "artifactName": "Agrega-Setup-${version}.${ext}"
+    "artifactName": "Agrega-Setup-${version}.${ext}",
+    "icon": "electron/assets/agregaico.ico"
   }
 }
