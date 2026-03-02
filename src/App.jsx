@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { useEffect, useMemo, useRef, useState, useCallback } from 'react'
 import emailjs from '@emailjs/browser'
 import './App.css'
 
@@ -471,12 +471,6 @@ const fetchMercadoLivreThumbnail = async (url) => {
   return ''
 }
 
-const refreshTikTokThumb = async (linkId, url) => {
-  const thumb = await fetchTikTokThumbnail(url)
-  if (!thumb) return
-  setLinks((prev) => prev.map((item) => (item.id === linkId ? { ...item, thumbnail: thumb } : item)))
-}
-
 const getThumbnailUrl = (url) => {
   const yt = getYouTubeThumbnail(url)
   if (yt) return yt
@@ -493,6 +487,7 @@ const getFaviconUrl = (url) => {
   try {
     const parsed = new URL(url)
     const host = parsed.hostname
+    if (isTikTokUrl(url)) return ''
     // DuckDuckGo icon service (ico) is lightweight and more permissive
     return `https://icons.duckduckgo.com/ip3/${host}.ico`
   } catch (error) {
@@ -673,6 +668,12 @@ function App() {
     if (!mlThumb) return
     setLinks((prev) => prev.map((item) => (item.id === linkId ? { ...item, thumbnail: mlThumb } : item)))
   }
+
+  const refreshTikTokThumb = useCallback(async (linkId, url) => {
+    const thumb = await fetchTikTokThumbnail(url)
+    if (!thumb) return
+    setLinks((prev) => prev.map((item) => (item.id === linkId ? { ...item, thumbnail: thumb } : item)))
+  }, [])
 
   const categoryCounts = useMemo(() => {
     const counts = categories.reduce((acc, category) => {
