@@ -375,6 +375,39 @@ const getYouTubeThumbnail = (url) => {
   return ''
 }
 
+const isTikTokUrl = (url) => {
+  try {
+    const parsed = new URL(url)
+    const host = parsed.hostname
+    return host.includes('tiktok.com') || host.includes('vm.tiktok.com')
+  } catch (error) {
+    return false
+  }
+}
+
+const fetchTikTokThumbnail = async (url) => {
+  if (!isTikTokUrl(url)) return ''
+
+  const targets = [
+    `https://www.tiktok.com/oembed?url=${encodeURIComponent(url)}`,
+    `https://www.tiktok.com/api/oembed?url=${encodeURIComponent(url)}`,
+  ]
+
+  for (const target of targets) {
+    try {
+      const response = await fetch(target)
+      if (!response.ok) continue
+      const data = await response.json()
+      const thumb = data?.thumbnail_url || ''
+      if (thumb) return thumb
+    } catch (error) {
+      // ignore and try next target
+    }
+  }
+
+  return ''
+}
+
 const extractMercadoLivreId = (url) => {
   try {
     const parsed = new URL(url)
@@ -425,9 +458,16 @@ const fetchMercadoLivreThumbnail = async (url) => {
   return ''
 }
 
+const refreshTikTokThumb = async (linkId, url) => {
+  const thumb = await fetchTikTokThumbnail(url)
+  if (!thumb) return
+  setLinks((prev) => prev.map((item) => (item.id === linkId ? { ...item, thumbnail: thumb } : item)))
+}
+
 const getThumbnailUrl = (url) => {
   const yt = getYouTubeThumbnail(url)
   if (yt) return yt
+  if (isTikTokUrl(url)) return ''
   try {
     const parsed = new URL(url)
     return `https://www.google.com/s2/favicons?domain=${parsed.hostname}&sz=128`
@@ -770,6 +810,7 @@ function App() {
     ])
 
     refreshMercadoLivreThumb(id, pendingUrl)
+    refreshTikTokThumb(id, pendingUrl)
 
     setLinkInput('')
     setPendingUrl('')
@@ -1020,6 +1061,7 @@ function App() {
 
     if (targetType !== 'image') {
       refreshMercadoLivreThumb(editTarget.id, nextUrl)
+      refreshTikTokThumb(editTarget.id, nextUrl)
     }
 
     setEditTarget(null)
