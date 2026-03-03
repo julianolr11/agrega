@@ -23,5 +23,14 @@
     "target": "nsis",
     "artifactName": "Agrega-Setup-${version}.${ext}",
     "icon": "electron/assets/agregaico.ico"
+  },
+  "nsis": {
+    "oneClick": false,
+    "allowToChangeInstallationDirectory": true,
+    "perMachine": false,
+    "runAfterFinish": true,
+    "createDesktopShortcut": true,
+    "createStartMenuShortcut": true,
+    "shortcutName": "Agrega"
   }
 }
