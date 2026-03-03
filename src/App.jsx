@@ -384,12 +384,18 @@ const isValidUrl = (value) => {
 const getYouTubeThumbnail = (url) => {
   try {
     const parsed = new URL(url)
-    if (parsed.hostname.includes('youtube.com')) {
+    const host = parsed.hostname
+    if (host.includes('youtube.com')) {
       const id = parsed.searchParams.get('v')
       if (id) return `https://img.youtube.com/vi/${id}/hqdefault.jpg`
+
+      const shortsMatch = parsed.pathname.match(/\/shorts\/([\w-]{5,})/)
+      if (shortsMatch?.[1]) return `https://img.youtube.com/vi/${shortsMatch[1]}/hqdefault.jpg`
     }
-    if (parsed.hostname.includes('youtu.be')) {
-      const id = parsed.pathname.replace('/', '')
+    if (host.includes('youtu.be')) {
+      const parts = parsed.pathname.split('/').filter(Boolean)
+      if (parts[0] === 'shorts' && parts[1]) return `https://img.youtube.com/vi/${parts[1]}/hqdefault.jpg`
+      const id = parts[0]
       if (id) return `https://img.youtube.com/vi/${id}/hqdefault.jpg`
     }
   } catch (error) {
@@ -398,11 +404,39 @@ const getYouTubeThumbnail = (url) => {
   return ''
 }
 
+const getCategoryHue = (value = '') => {
+  let hash = 0
+  for (let index = 0; index < value.length; index += 1) {
+    hash = value.charCodeAt(index) + ((hash << 5) - hash)
+  }
+  return Math.abs(hash) % 360
+}
+
 const isTikTokUrl = (url) => {
   try {
     const parsed = new URL(url)
     const host = parsed.hostname
     return host.includes('tiktok.com') || host.includes('vm.tiktok.com')
+  } catch (error) {
+    return false
+  }
+}
+
+const isInstagramUrl = (url) => {
+  try {
+    const parsed = new URL(url)
+    const host = parsed.hostname
+    return host.includes('instagram.com') || host.includes('instagr.am')
+  } catch (error) {
+    return false
+  }
+}
+
+const isMercadoLivreUrl = (url) => {
+  try {
+    const parsed = new URL(url)
+    const host = parsed.hostname
+    return host.includes('mercadolivre') || host.includes('mercadolibre')
   } catch (error) {
     return false
   }
@@ -444,6 +478,13 @@ const fetchTikTokThumbnail = async (url) => {
   return ''
 }
 
+const fetchInstagramThumbnail = async (url) => {
+  // Instagram aggressively rate-limits; fall back to the icon only
+  if (!isInstagramUrl(url)) return ''
+  return ''
+
+}
+
 const extractMercadoLivreId = (url) => {
   try {
     const parsed = new URL(url)
@@ -456,10 +497,23 @@ const extractMercadoLivreId = (url) => {
     const itemParam = parsed.searchParams.get('item_id')
     if (itemParam) candidates.push(itemParam)
 
+    const itemParamAlt = parsed.searchParams.get('itemId')
+    if (itemParamAlt) candidates.push(itemParamAlt)
+
     parts.forEach((segment) => {
       const match = segment.match(/MLB-?\d+/i)
       if (match) {
         candidates.push(match[0].replace('-', '').toUpperCase())
+      }
+
+      const pMatch = segment.match(/p(roduto)?/i)
+      if (pMatch) {
+        const nextIndex = parts.indexOf(segment) + 1
+        const next = parts[nextIndex]
+        if (next) {
+          const nextMatch = next.match(/MLB-?\d+/i)
+          if (nextMatch) candidates.push(nextMatch[0].replace('-', '').toUpperCase())
+        }
       }
     })
 
@@ -474,18 +528,21 @@ const fetchMercadoLivreThumbnail = async (url) => {
   const id = extractMercadoLivreId(url)
   if (!id) return ''
 
-  const targets = [
-    `https://api.mercadolibre.com/items/${id}`,
-    `https://api.allorigins.win/raw?url=${encodeURIComponent(`https://api.mercadolibre.com/items/${id}`)}`,
+  const scrapeTargets = [
+    `https://r.jina.ai/${url}`,
+    `https://r.jina.ai/https://api.mercadolibre.com/items/${id}`,
   ]
 
-  for (const target of targets) {
+  const ogImageRegex = /<meta\s+property="og:image"\s+content="(.*?)"/i
+
+  for (const target of scrapeTargets) {
     try {
       const response = await fetch(target)
       if (!response.ok) continue
-      const data = await response.json()
-      const image = data.pictures?.[0]?.secure_url || data.secure_thumbnail || ''
-      if (image) return image
+      const text = await response.text()
+      const match = text.match(ogImageRegex)
+      const img = match?.[1] || ''
+      if (img) return img
     } catch (error) {
       // ignore and try next target
     }
@@ -497,7 +554,9 @@ const fetchMercadoLivreThumbnail = async (url) => {
 const getThumbnailUrl = (url) => {
   const yt = getYouTubeThumbnail(url)
   if (yt) return yt
+  if (isInstagramUrl(url)) return 'https://icons.duckduckgo.com/ip3/instagram.com.ico'
   if (isTikTokUrl(url)) return ''
+  if (isMercadoLivreUrl(url)) return 'https://icons.duckduckgo.com/ip3/mercadolivre.com.br.ico'
   try {
     const parsed = new URL(url)
     return `https://www.google.com/s2/favicons?domain=${parsed.hostname}&sz=128`
@@ -510,7 +569,9 @@ const getFaviconUrl = (url) => {
   try {
     const parsed = new URL(url)
     const host = parsed.hostname
-    if (isTikTokUrl(url)) return ''
+    if (isTikTokUrl(url)) return 'https://www.tiktok.com/favicon.ico'
+    if (isInstagramUrl(url)) return 'https://icons.duckduckgo.com/ip3/instagram.com.ico'
+    if (isMercadoLivreUrl(url)) return 'https://icons.duckduckgo.com/ip3/mercadolivre.com.br.ico'
     // DuckDuckGo icon service (ico) is lightweight and more permissive
     return `https://icons.duckduckgo.com/ip3/${host}.ico`
   } catch (error) {
@@ -585,6 +646,7 @@ function App() {
   const [pendingUrl, setPendingUrl] = useState('')
   const [pendingImage, setPendingImage] = useState(null)
   const [pendingText, setPendingText] = useState('')
+  const [modalPreview, setModalPreview] = useState({ thumbnail: '', favicon: '' })
   const [userEmail, setUserEmail] = useState('')
   const [emailForm, setEmailForm] = useState({ email: '' })
   const [showEmailModal, setShowEmailModal] = useState(false)
@@ -765,6 +827,32 @@ function App() {
     }
   }, [filterOpen])
 
+  useEffect(() => {
+    const hasAnyModal = showModal || showImageModal || showTextModal || showEmailModal || showSettingsModal
+      || showReminderModal || viewerTarget || editTarget || deleteTarget
+
+    if (!hasAnyModal) return undefined
+
+    const handleKeyDown = (event) => {
+      if (event.key !== 'Escape') return
+      if (viewerTarget) return handleCloseViewer()
+      if (showModal) return handleCloseModal()
+      if (showImageModal) return handleCloseImageModal()
+      if (showTextModal) return handleCloseTextModal()
+      if (showEmailModal) return handleCloseEmailModal()
+      if (showSettingsModal) return handleCloseSettingsModal()
+      if (showReminderModal) {
+        handleCloseReminderModal()
+        return
+      }
+      if (editTarget) return setEditTarget(null)
+      if (deleteTarget) return handleDeleteCancel()
+    }
+
+    window.addEventListener('keydown', handleKeyDown)
+    return () => window.removeEventListener('keydown', handleKeyDown)
+  }, [showModal, showImageModal, showTextModal, showEmailModal, showSettingsModal, showReminderModal, viewerTarget, editTarget, deleteTarget])
+
   const refreshMercadoLivreThumb = async (linkId, url) => {
     const mlThumb = await fetchMercadoLivreThumbnail(url)
     if (!mlThumb) return
@@ -776,6 +864,26 @@ function App() {
     if (!thumb) return
     setLinks((prev) => prev.map((item) => (item.id === linkId ? { ...item, thumbnail: thumb } : item)))
   }, [])
+
+  const refreshInstagramThumb = useCallback(async (linkId, url) => {
+    const thumb = await fetchInstagramThumbnail(url)
+    if (!thumb) return
+    setLinks((prev) => prev.map((item) => (item.id === linkId ? { ...item, thumbnail: thumb } : item)))
+  }, [])
+
+  useEffect(() => {
+    links.forEach((link) => {
+      if (link.type !== 'link') return
+      if (link.thumbnail) return
+      if (isMercadoLivreUrl(link.url)) {
+        refreshMercadoLivreThumb(link.id, link.url)
+        return
+      }
+      if (isInstagramUrl(link.url)) {
+        refreshInstagramThumb(link.id, link.url)
+      }
+    })
+  }, [links, refreshMercadoLivreThumb, refreshInstagramThumb])
 
   const categoryCounts = useMemo(() => {
     const counts = categories.reduce((acc, category) => {
@@ -989,6 +1097,7 @@ function App() {
       newCategory: '',
       category: categories[0] || '',
     }))
+    hydrateModalPreview(url)
   }
 
   const handleSaveLink = (event) => {
@@ -1024,6 +1133,7 @@ function App() {
 
     refreshMercadoLivreThumb(id, pendingUrl)
     refreshTikTokThumb(id, pendingUrl)
+    refreshInstagramThumb(id, pendingUrl)
 
     setLinkInput('')
     setPendingUrl('')
@@ -1305,6 +1415,7 @@ function App() {
     if (targetType !== 'image') {
       refreshMercadoLivreThumb(editTarget.id, nextUrl)
       refreshTikTokThumb(editTarget.id, nextUrl)
+      refreshInstagramThumb(editTarget.id, nextUrl)
     }
 
     setEditTarget(null)
@@ -1438,6 +1549,27 @@ function App() {
     setShowReminderModal(true)
   }
 
+  const hydrateModalPreview = useCallback(async (url) => {
+    const baseThumb = getThumbnailUrl(url)
+    const baseFavicon = getFaviconUrl(url)
+    setModalPreview({ thumbnail: baseThumb, favicon: baseFavicon })
+
+    if (isMercadoLivreUrl(url)) {
+      const ml = await fetchMercadoLivreThumbnail(url)
+      if (ml) setModalPreview((prev) => ({ ...prev, thumbnail: ml }))
+    }
+
+    if (isInstagramUrl(url)) {
+      const ig = await fetchInstagramThumbnail(url)
+      if (ig) setModalPreview((prev) => ({ ...prev, thumbnail: ig }))
+    }
+
+    if (isTikTokUrl(url)) {
+      const tk = await fetchTikTokThumbnail(url)
+      if (tk) setModalPreview((prev) => ({ ...prev, thumbnail: tk }))
+    }
+  }, [])
+
   useEffect(() => {
     const onPaste = async (event) => {
       if (showModal || showImageModal || showTextModal) return
@@ -1480,6 +1612,7 @@ function App() {
   const handleCloseModal = () => {
     setShowModal(false)
     setPendingUrl('')
+    setModalPreview({ thumbnail: '', favicon: '' })
   }
 
   const handleCloseImageModal = () => {
@@ -1709,17 +1842,24 @@ function App() {
 
                 {links.length > 0 && (
                   <div className="link-grid">
-                    {visibleLinks.map((link) => (
-                      <article className={`link-card ${editMode ? 'editable' : ''}`} key={link.id}>
+                    {visibleLinks.map((link) => {
+                      const displayThumb = link.thumbnail || (link.type === 'link' ? getThumbnailUrl(link.url) : '')
+                      return (
+                        <article className={`link-card ${editMode ? 'editable' : ''}`} key={link.id}>
                         <div className="link-card__content">
                           <div className="link-card__top">
-                            <span className="pill subtle">{link.category}</span>
+                            <span
+                              className="pill subtle category-pill"
+                              style={{ '--category-hue': getCategoryHue(link.category || '') }}
+                            >
+                              {link.category}
+                            </span>
                             <span className="timestamp">{new Date(link.createdAt).toLocaleDateString()}</span>
                           </div>
                           <div className="link-card__body">
-                            {link.thumbnail && (
+                            {displayThumb && (
                               <div className="thumb" aria-hidden="true">
-                                <img src={link.thumbnail} alt="" />
+                                <img src={displayThumb} alt="" />
                               </div>
                             )}
                             <div className="link-card__text">
@@ -1795,7 +1935,7 @@ function App() {
                           </div>
                         )}
                       </article>
-                    ))}
+                    )})}
                   </div>
                 )}
               </section>
@@ -1807,6 +1947,7 @@ function App() {
       {showModal && (
         <Modal
           pendingUrl={pendingUrl}
+          pendingPreview={modalPreview}
           categories={categories}
           formData={formData}
           onChange={setFormData}
@@ -1912,9 +2053,16 @@ function App() {
   )
 }
 
-function Modal({ pendingUrl, categories, formData, onChange, onClose, onSubmit, t }) {
+function Modal({ pendingUrl, pendingPreview, categories, formData, onChange, onClose, onSubmit, t }) {
   return (
-    <div className="modal-backdrop" role="dialog" aria-modal="true">
+    <div
+      className="modal-backdrop"
+      role="dialog"
+      aria-modal="true"
+      onClick={(event) => {
+        if (event.target === event.currentTarget) onClose()
+      }}
+    >
       <div className="modal">
         <header className="modal-header">
           <div>
@@ -1959,7 +2107,12 @@ function Modal({ pendingUrl, categories, formData, onChange, onClose, onSubmit, 
 
           <label className="field">
             <span>{t('linkLabel')}</span>
-            <input value={pendingUrl} readOnly />
+            <div className="input-with-icon">
+              {pendingPreview?.favicon && (
+                <img className="input-favicon" src={pendingPreview.favicon} alt="favicon" />
+              )}
+              <input value={pendingUrl} readOnly />
+            </div>
           </label>
 
           <div className="modal-actions">
@@ -1978,7 +2131,14 @@ function Modal({ pendingUrl, categories, formData, onChange, onClose, onSubmit, 
 
 function ImageModal({ pendingImage, categories, formData, errorMessage, onChange, onClose, onSubmit, t }) {
   return (
-    <div className="modal-backdrop" role="dialog" aria-modal="true">
+    <div
+      className="modal-backdrop"
+      role="dialog"
+      aria-modal="true"
+      onClick={(event) => {
+        if (event.target === event.currentTarget) onClose()
+      }}
+    >
       <div className="modal">
         <header className="modal-header">
           <div>
@@ -2045,7 +2205,14 @@ function ImageModal({ pendingImage, categories, formData, errorMessage, onChange
 
 function TextModal({ pendingText, categories, formData, errorMessage, onChange, onClose, onSubmit, t }) {
   return (
-    <div className="modal-backdrop" role="dialog" aria-modal="true">
+    <div
+      className="modal-backdrop"
+      role="dialog"
+      aria-modal="true"
+      onClick={(event) => {
+        if (event.target === event.currentTarget) onClose()
+      }}
+    >
       <div className="modal">
         <header className="modal-header">
           <div>
@@ -2117,7 +2284,14 @@ function TextModal({ pendingText, categories, formData, errorMessage, onChange, 
 
 function EmailSetupModal({ formData, errorMessage, onChange, onClose, onSubmit, t }) {
   return (
-    <div className="modal-backdrop" role="dialog" aria-modal="true">
+    <div
+      className="modal-backdrop"
+      role="dialog"
+      aria-modal="true"
+      onClick={(event) => {
+        if (event.target === event.currentTarget) onClose()
+      }}
+    >
       <div className="modal">
         <header className="modal-header">
           <div>
@@ -2157,7 +2331,14 @@ function EmailSetupModal({ formData, errorMessage, onChange, onClose, onSubmit, 
 
 function SettingsModal({ formData, errorMessage, onChange, onClose, onSubmit, onExportBackup, onImportBackup, importInputRef, onImportFile, t }) {
   return (
-    <div className="modal-backdrop" role="dialog" aria-modal="true">
+    <div
+      className="modal-backdrop"
+      role="dialog"
+      aria-modal="true"
+      onClick={(event) => {
+        if (event.target === event.currentTarget) onClose()
+      }}
+    >
       <div className="modal">
         <header className="modal-header">
           <div>
@@ -2234,15 +2415,33 @@ function ViewerModal({ link, onClose, t }) {
   const isText = link?.type === 'text'
   const [zoom, setZoom] = useState(1)
   const [viewerCopyMsg, setViewerCopyMsg] = useState('')
+  const viewerMediaRef = useRef(null)
 
-  const changeZoom = (delta) => {
+  const changeZoom = useCallback((delta) => {
     setZoom((prev) => {
       const next = Math.min(3, Math.max(0.5, Math.round((prev + delta) * 10) / 10))
       return next
     })
-  }
+  }, [])
 
   const resetZoom = () => setZoom(1)
+
+  useEffect(() => {
+    if (!isImage) return undefined
+    const el = viewerMediaRef.current
+    if (!el) return undefined
+
+    const handleWheel = (event) => {
+      event.preventDefault()
+      const delta = event.deltaY > 0 ? -0.1 : 0.1
+      changeZoom(delta)
+    }
+
+    el.addEventListener('wheel', handleWheel, { passive: false })
+    return () => {
+      el.removeEventListener('wheel', handleWheel)
+    }
+  }, [isImage, changeZoom])
 
   const handleViewerCopy = async () => {
     try {
@@ -2273,7 +2472,14 @@ function ViewerModal({ link, onClose, t }) {
   }
 
   return (
-    <div className="modal-backdrop" role="dialog" aria-modal="true">
+    <div
+      className="modal-backdrop"
+      role="dialog"
+      aria-modal="true"
+      onClick={(event) => {
+        if (event.target === event.currentTarget) onClose()
+      }}
+    >
       <div className="modal modal-wide">
         <header className="modal-header">
           <div className="viewer-title-block">
@@ -2314,11 +2520,7 @@ function ViewerModal({ link, onClose, t }) {
             <div
               className="viewer-media"
               aria-label={t('imagePreviewAria')}
-              onWheel={(event) => {
-                event.preventDefault()
-                const delta = event.deltaY > 0 ? -0.1 : 0.1
-                changeZoom(delta)
-              }}
+              ref={viewerMediaRef}
             >
               <img
                 src={link.imageData || link.url}
@@ -2340,7 +2542,14 @@ function ViewerModal({ link, onClose, t }) {
 
 function EditModal({ categories, formData, onChange, onClose, onSubmit, isImage, t }) {
   return (
-    <div className="modal-backdrop" role="dialog" aria-modal="true">
+    <div
+      className="modal-backdrop"
+      role="dialog"
+      aria-modal="true"
+      onClick={(event) => {
+        if (event.target === event.currentTarget) onClose()
+      }}
+    >
       <div className="modal">
         <header className="modal-header">
           <div>
@@ -2424,7 +2633,14 @@ function EditModal({ categories, formData, onChange, onClose, onSubmit, isImage,
 
 function ConfirmDeleteModal({ title, onConfirm, onCancel, t }) {
   return (
-    <div className="modal-backdrop" role="dialog" aria-modal="true">
+    <div
+      className="modal-backdrop"
+      role="dialog"
+      aria-modal="true"
+      onClick={(event) => {
+        if (event.target === event.currentTarget) onCancel()
+      }}
+    >
       <div className="modal">
         <header className="modal-header">
           <div>
@@ -2464,7 +2680,14 @@ function ReminderModal({ links, monthDate, formData, errorMessage, onMonthChange
   const modalClass = `modal ${formData.linkToggle ? 'modal-wide' : ''}`
 
   return (
-    <div className="modal-backdrop" role="dialog" aria-modal="true">
+    <div
+      className="modal-backdrop"
+      role="dialog"
+      aria-modal="true"
+      onClick={(event) => {
+        if (event.target === event.currentTarget) onClose()
+      }}
+    >
       <div className={modalClass}>
         <header className="modal-header">
           <div>

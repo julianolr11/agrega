@@ -15,49 +15,6 @@ html, body {
 }
 
 *::-webkit-scrollbar {
-  width: 12px;
-  height: 12px;
-}
-
-*::-webkit-scrollbar-track {
-  background: linear-gradient(180deg, rgba(12, 16, 26, 0.92), rgba(8, 12, 22, 0.88));
-  border-left: 1px solid var(--border-subtle);
-}
-
-*::-webkit-scrollbar-thumb {
-  background: linear-gradient(180deg, rgba(94, 237, 204, 0.9), rgba(58, 129, 255, 0.7));
-  border-radius: 12px;
-  border: 2px solid rgba(8, 12, 22, 0.95);
-  box-shadow: 0 8px 18px rgba(0, 0, 0, 0.4);
-}
-
-*::-webkit-scrollbar-thumb:hover {
-  background: linear-gradient(180deg, rgba(118, 255, 215, 1), rgba(74, 150, 255, 0.9));
-}
-
-.topbar {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  padding: 20px 24px;
-  border-bottom: 1px solid var(--border-subtle);
-  background: rgba(8, 12, 22, 0.65);
-  backdrop-filter: blur(12px);
-  position: sticky;
-  top: 0;
-  z-index: 10;
-}
-
-.topbar-right {
-  display: inline-flex;
-  align-items: center;
-  gap: 10px;
-}
-
-.toast {
-  position: fixed;
-  top: 18px;
-  left: 50%;
   transform: translateX(-50%);
   padding: 10px 14px;
   border-radius: 12px;
@@ -74,6 +31,7 @@ html, body {
   align-items: center;
   gap: 10px;
   min-height: 36px;
+  margin-left: 40px;
 }
 
 .brand img {
@@ -92,11 +50,25 @@ html, body {
   font-size: 13px;
 }
 
+.topbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 24px 24px 6px;
+  gap: 12px;
+}
+
+.topbar-right {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+}
+
 .content {
   display: grid;
   grid-template-columns: 260px 1fr;
   gap: 18px;
-  padding: 18px;
+  padding: 18px 14px 24px;
 }
 
 .sidebar {
@@ -196,6 +168,12 @@ html, body {
 
 .pill.subtle {
   background: rgba(255, 255, 255, 0.05);
+}
+
+.category-pill {
+  background: hsla(var(--category-hue, 180), 78%, 62%, 0.14);
+  color: hsl(var(--category-hue, 180), 86%, 78%);
+  border: 1px solid hsla(var(--category-hue, 180), 82%, 68%, 0.38);
 }
 
 .sidebar-hint {
@@ -464,6 +442,11 @@ html, body {
   gap: 8px;
   position: relative;
   overflow: visible;
+  transition: border-color 0.2s ease;
+}
+
+.link-card:hover {
+  border-color: var(--accent);
 }
 
 .link-card__content {
@@ -513,7 +496,7 @@ html, body {
   display: flex;
   flex-direction: column;
   gap: 6px;
-  width: fit-content;
+  width: 100%;
 }
 
 .link-title {
@@ -528,8 +511,9 @@ html, body {
 .link-meta {
   display: flex;
   align-items: center;
-  justify-content: space-between;
+  justify-content: flex-start;
   gap: 10px;
+  width: 100%;
 }
 
 .link-meta__info {
@@ -563,6 +547,8 @@ html, body {
 .card-actions {
   display: flex;
   gap: 6px;
+  margin-left: auto;
+  justify-content: flex-end;
 }
 
 .icon-button {
@@ -591,7 +577,7 @@ html, body {
 .icon-button[data-tooltip]:hover::after {
   content: attr(data-tooltip);
   position: absolute;
-  bottom: 110%;
+  top: calc(100% + 8px);
   left: 50%;
   transform: translateX(-50%);
   background: rgba(12, 16, 26, 0.95);
@@ -610,12 +596,12 @@ html, body {
 .icon-button[data-tooltip]:hover::before {
   content: '';
   position: absolute;
-  bottom: 100%;
+  top: 100%;
   left: 50%;
   transform: translateX(-50%);
   border: 6px solid transparent;
-  border-top: none;
-  border-bottom-color: rgba(12, 16, 26, 0.95);
+  border-bottom: none;
+  border-top-color: rgba(12, 16, 26, 0.95);
   z-index: 3;
 }
 
@@ -766,6 +752,86 @@ html, body {
   display: flex;
   flex-direction: column;
   gap: 12px;
+}
+
+.modal-preview {
+  display: inline-flex;
+  align-items: center;
+  gap: 12px;
+  padding: 10px;
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.03);
+  border: 1px solid var(--border-subtle);
+}
+
+.modal-preview__thumb {
+  width: 96px;
+  height: 96px;
+  border-radius: 12px;
+  overflow: hidden;
+  border: 1px solid var(--border-subtle);
+  background: rgba(255, 255, 255, 0.04);
+}
+
+.modal-preview__thumb img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.modal-preview__favicon {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 10px;
+  border-radius: 10px;
+  border: 1px solid var(--border-subtle);
+  background: rgba(255, 255, 255, 0.04);
+  color: var(--text-secondary);
+  font-size: 13px;
+}
+
+.modal-preview__favicon img {
+  width: 20px;
+  height: 20px;
+  border-radius: 6px;
+}
+
+
+.input-with-icon {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  padding: 10px 12px;
+  border-radius: 12px;
+  border: 1px solid var(--border-subtle);
+  background: rgba(10, 14, 24, 0.9);
+}
+
+.input-with-icon:focus-within {
+  border-color: var(--accent);
+  outline: 1px solid var(--accent);
+}
+
+.input-with-icon input {
+  width: 100%;
+  border: none;
+  background: transparent;
+  padding: 0;
+  color: var(--text-primary);
+}
+
+.input-with-icon input:focus {
+  outline: none;
+}
+
+.input-favicon {
+  width: 18px;
+  height: 18px;
+  border-radius: 5px;
+  flex-shrink: 0;
 }
 
 .image-preview {
@@ -925,6 +991,14 @@ html, body {
   background: rgba(10, 14, 24, 0.9);
   color: var(--text-primary);
   appearance: none;
+}
+
+/* Collapse nested borders when using the favicon+input wrapper in modals */
+.field .input-with-icon input {
+  border: none;
+  background: transparent;
+  padding: 0;
+  box-shadow: none;
 }
 
 .modal-divider {
@@ -1353,6 +1427,11 @@ html, body {
 .field input:focus,
 .field select:focus {
   outline: 1px solid var(--accent);
+}
+
+/* Keep focus ring on the wrapper, not the inner input */
+.field .input-with-icon input:focus {
+  outline: none;
 }
 
 .field select option {
