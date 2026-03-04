@@ -1844,6 +1844,7 @@ function App() {
                   <div className="link-grid">
                     {visibleLinks.map((link) => {
                       const displayThumb = link.thumbnail || (link.type === 'link' ? getThumbnailUrl(link.url) : '')
+                      const bodyClass = displayThumb ? 'link-card__body' : 'link-card__body no-thumb'
                       return (
                         <article className={`link-card ${editMode ? 'editable' : ''}`} key={link.id}>
                         <div className="link-card__content">
@@ -1856,7 +1857,7 @@ function App() {
                             </span>
                             <span className="timestamp">{new Date(link.createdAt).toLocaleDateString()}</span>
                           </div>
-                          <div className="link-card__body">
+                          <div className={bodyClass}>
                             {displayThumb && (
                               <div className="thumb" aria-hidden="true">
                                 <img src={displayThumb} alt="" />
@@ -1977,6 +1978,7 @@ function App() {
           formData={formData}
           errorMessage={textError}
           onChange={setFormData}
+          onTextChange={setPendingText}
           onClose={handleCloseTextModal}
           onSubmit={handleSaveText}
           t={t}
@@ -2203,7 +2205,7 @@ function ImageModal({ pendingImage, categories, formData, errorMessage, onChange
   )
 }
 
-function TextModal({ pendingText, categories, formData, errorMessage, onChange, onClose, onSubmit, t }) {
+function TextModal({ pendingText, categories, formData, errorMessage, onChange, onTextChange, onClose, onSubmit, t }) {
   return (
     <div
       className="modal-backdrop"
@@ -2228,8 +2230,8 @@ function TextModal({ pendingText, categories, formData, errorMessage, onChange, 
           <label className="field">
             <span>{t('textPreview')}</span>
             <textarea
-              readOnly
               value={pendingText}
+              onChange={(event) => onTextChange(event.target.value)}
               rows={6}
               className="text-preview"
               aria-label={t('textPreviewAria')}
