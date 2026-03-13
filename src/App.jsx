@@ -2237,8 +2237,7 @@ function App() {
               <section className={`dashboard ${editMode ? 'editing' : ''}`}>
                 <div className="dashboard-header">
                   <div>
-                    <p className="eyebrow">{t('dashboardEyebrow')}</p>
-                    <h2>{t('dashboardTitle')}</h2>
+                    <p className="eyebrow">Links guardados</p>
                   </div>
                   <div className="dashboard-actions">
                     <input
