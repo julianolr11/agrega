@@ -323,8 +323,9 @@ html, body {
 
 .dashboard-header {
   display: flex;
-  align-items: center;
-  justify-content: space-between;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 10px;
   margin-bottom: 12px;
 }
 
@@ -332,6 +333,7 @@ html, body {
   display: flex;
   align-items: center;
   gap: 10px;
+  width: 100%;
 }
 
 .filter-wrapper {
@@ -425,7 +427,9 @@ html, body {
 }
 
 .search-input {
-  min-width: 240px;
+  flex: 1;
+  min-width: 0;
+  width: 100%;
   padding: 10px 12px;
   border-radius: 10px;
   border: 1px solid var(--border-subtle);
