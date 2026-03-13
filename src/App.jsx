@@ -46,7 +46,7 @@ const translations = {
     filterAlphaDesc: 'Z–A',
     filterSortTitle: 'Ordenar',
     filterCategoryTitle: 'Categorias',
-    editModeEnter: 'Entrar no modo edição',
+    editModeEnter: 'Editar',
     editModeExit: 'Sair do modo edição',
     emptyDashboard: 'Adicione o primeiro link para preencher seu painel.',
     sidebarHome: 'Início',
@@ -94,6 +94,7 @@ const translations = {
     save: 'Salvar',
     reminderNew: 'Novo lembrete',
     reminderSubtitle: 'Defina assunto, data e vínculo',
+    reminderEditTitle: 'Editar lembrete',
     subjectLabel: 'Assunto',
     subjectPlaceholder: 'Ex: Revisar artigo',
     dateLabel: 'Data',
@@ -161,6 +162,7 @@ const translations = {
     linkUpdatedError: 'Escolha ou crie uma categoria.',
     reminderSubjectRequired: 'Informe um assunto',
     reminderDateRequired: 'Escolha uma data',
+      reminderEditTitle: 'Edit reminder',
     emailInvalid: 'Informe um e-mail válido',
     imageReadFail: 'Não conseguimos ler a imagem do clipboard.',
     imageCopyFail: 'Não foi possível copiar',
@@ -200,7 +202,7 @@ const translations = {
     filterAlphaDesc: 'Z–A',
     filterSortTitle: 'Sort',
     filterCategoryTitle: 'Categories',
-    editModeEnter: 'Enter edit mode',
+    editModeEnter: 'Edit',
     editModeExit: 'Exit edit mode',
     emptyDashboard: 'Add the first link to fill your dashboard.',
     sidebarHome: 'Home',
@@ -247,6 +249,7 @@ const translations = {
     editNamePlaceholder: 'e.g.: References',
     save: 'Save',
     reminderNew: 'New reminder',
+    reminderEditTitle: 'Edit reminder',
     reminderSubtitle: 'Set subject, date and link',
     subjectLabel: 'Subject',
     subjectPlaceholder: 'e.g.: Review article',
@@ -406,6 +409,13 @@ const IconRefresh = () => (
     <polyline points="23 4 23 10 17 10" />
     <polyline points="1 20 1 14 7 14" />
     <path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15" />
+  </svg>
+)
+
+const IconBell = () => (
+  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+    <path d="M18 8a6 6 0 1 0-12 0c0 7-3 9-3 9h18s-3-2-3-9" />
+    <path d="M13.73 21a2 2 0 0 1-3.46 0" />
   </svg>
 )
 
@@ -859,7 +869,6 @@ function App() {
   const [view, setView] = useState('collect')
   const [actionMessage, setActionMessage] = useState('')
   const [cardMessage, setCardMessage] = useState({ id: '', text: '' })
-  const [editMode, setEditMode] = useState(false)
   const [editForm, setEditForm] = useState({ title: '', url: '', category: '', newCategory: '', type: 'link', content: '' })
   const [editTarget, setEditTarget] = useState(null)
   const [deleteTarget, setDeleteTarget] = useState(null)
@@ -867,6 +876,8 @@ function App() {
   const [showReminderModal, setShowReminderModal] = useState(false)
   const [reminderError, setReminderError] = useState('')
   const [reminderEditTarget, setReminderEditTarget] = useState(null)
+  const [reminderLinkCandidate, setReminderLinkCandidate] = useState(null)
+  const [reminderLinkLocked, setReminderLinkLocked] = useState(false)
   const [reminderForm, setReminderForm] = useState({
     subject: '',
     date: new Date().toISOString().slice(0, 10),
@@ -1754,7 +1765,8 @@ function App() {
     setReminderError('')
 
     const link = reminderForm.linkToggle
-      ? links.find((item) => item.id === reminderForm.linkId)
+      ? (links.find((item) => item.id === reminderForm.linkId)
+        || (reminderLinkCandidate && reminderLinkCandidate.id === reminderForm.linkId ? reminderLinkCandidate : null))
       : null
 
     const payload = {
@@ -1776,6 +1788,8 @@ function App() {
 
     setShowReminderModal(false)
     setReminderForm({ subject: '', date: new Date().toISOString().slice(0, 10), linkId: '', linkToggle: false })
+    setReminderLinkCandidate(null)
+    setReminderLinkLocked(false)
   }
 
   const handleReminderMonth = (direction) => {
@@ -1815,16 +1829,27 @@ function App() {
     const parsed = new Date(target)
     setReminderMonth(new Date(parsed.getFullYear(), parsed.getMonth(), 1))
     setReminderError('')
+    setReminderLinkCandidate(null)
+    setReminderLinkLocked(false)
     setShowReminderModal(true)
   }
 
   const handleReminderDelete = (reminderId) => {
+    if (!reminderId) return
     setReminders((prev) => prev.filter((item) => item.id !== reminderId))
     showAction(t('reminderRemoved'))
+    setReminderEditTarget(null)
+    setShowReminderModal(false)
+    setReminderForm({ subject: '', date: new Date().toISOString().slice(0, 10), linkId: '', linkToggle: false })
+    setReminderLinkCandidate(null)
+    setReminderLinkLocked(false)
+    setReminderError('')
   }
 
   const handleReminderEdit = (reminder) => {
     setReminderEditTarget(reminder)
+    setReminderLinkCandidate(null)
+    setReminderLinkLocked(false)
     setReminderForm({
       subject: reminder.subject,
       date: reminder.date,
@@ -1842,6 +1867,49 @@ function App() {
     const today = new Date().toISOString().slice(0, 10)
     setReminderForm({ subject: '', date: today, linkId: '', linkToggle: false })
     setReminderError('')
+    setReminderLinkCandidate(null)
+    setReminderLinkLocked(false)
+    setShowReminderModal(true)
+  }
+
+  const openReminderWithCurrentLink = () => {
+    if (!pendingUrl) {
+      openStandaloneReminder()
+      return
+    }
+
+    const today = new Date().toISOString().slice(0, 10)
+    const derivedCategory = (formData.newCategory || '').trim() || formData.category || t('defaultCategory')
+    const candidate = {
+      id: `pending-link-${Date.now()}`,
+      title: (formData.title || '').trim() || t('defaultLinkTitle'),
+      url: pendingUrl,
+      category: derivedCategory,
+      thumbnail: modalPreview.thumbnail || getThumbnailUrl(pendingUrl),
+      favicon: modalPreview.favicon || getFaviconUrl(pendingUrl),
+      type: 'link',
+    }
+
+    setReminderEditTarget(null)
+    setReminderLinkCandidate(candidate)
+    setReminderLinkLocked(true)
+    setReminderForm({
+      subject: '',
+      date: today,
+      linkId: candidate.id,
+      linkToggle: true,
+    })
+    setReminderError('')
+    setShowReminderModal(true)
+  }
+
+  const openReminderWithoutLink = () => {
+    setReminderEditTarget(null)
+    const today = new Date().toISOString().slice(0, 10)
+    setReminderForm({ subject: '', date: today, linkId: '', linkToggle: false })
+    setReminderError('')
+    setReminderLinkCandidate(null)
+    setReminderLinkLocked(true)
     setShowReminderModal(true)
   }
 
@@ -1936,6 +2004,8 @@ function App() {
   const handleCloseReminderModal = () => {
     setShowReminderModal(false)
     setReminderError('')
+    setReminderLinkCandidate(null)
+    setReminderLinkLocked(false)
   }
 
   const applyRemotePayload = useCallback((payload = {}, nextHash = '') => {
@@ -2242,7 +2312,7 @@ function App() {
                 {error && <p className="error">{error}</p>}
               </section>
 
-              <section className={`dashboard ${editMode ? 'editing' : ''}`}>
+              <section className="dashboard">
                 <div className="dashboard-header">
                   <div>
                     <p className="eyebrow">Links guardados</p>
@@ -2327,14 +2397,6 @@ function App() {
                         </div>
                       )}
                     </div>
-                    <button
-                      className={`icon-button ${editMode ? 'active' : ''}`}
-                      onClick={() => setEditMode((prev) => !prev)}
-                      aria-label={t('editModeEnter')}
-                      data-tooltip={editMode ? t('editModeExit') : t('editModeEnter')}
-                    >
-                      <IconEdit />
-                    </button>
                   </div>
                 </div>
 
@@ -2351,7 +2413,7 @@ function App() {
                       const bodyClass = displayThumb ? 'link-card__body' : 'link-card__body no-thumb'
                       const categoryHue = categoryPalette[link.category] ?? getCategoryHue(link.category || '')
                       return (
-                        <article className={`link-card ${editMode ? 'editable' : ''}`} key={link.id}>
+                        <article className="link-card" key={link.id}>
                         <div className="link-card__content">
                           <div className="link-card__top">
                             <span
@@ -2377,11 +2439,21 @@ function App() {
                               </div>
                             )}
                             <div className="link-card__text">
-                              <h3>
-                                <a className="link-title" href={link.url} target="_blank" rel="noreferrer">
-                                  {link.title}
-                                </a>
-                              </h3>
+                              <div className="link-title-row">
+                                <h3>
+                                  <a className="link-title" href={link.url} target="_blank" rel="noreferrer">
+                                    {link.title}
+                                  </a>
+                                </h3>
+                                <button
+                                  className="icon-button ghost small title-edit"
+                                  aria-label={t('editTooltip')}
+                                  data-tooltip={t('editTooltip')}
+                                  onClick={() => handleEdit(link)}
+                                >
+                                  <IconEdit />
+                                </button>
+                              </div>
                               {link.type === 'text' && null}
                               <div className="link-meta">
                                 <div className="link-meta__info">
@@ -2427,26 +2499,6 @@ function App() {
                           </div>
                         </div>
 
-                        {editMode && (
-                          <div className="card-edit-actions">
-                            <button
-                              className="icon-button small info"
-                              onClick={() => handleEdit(link)}
-                              aria-label={t('editTooltip')}
-                              data-tooltip={t('editTooltip')}
-                            >
-                              <IconEdit />
-                            </button>
-                            <button
-                              className="icon-button small danger"
-                              onClick={() => handleDelete(link)}
-                              aria-label={t('deleteTooltip')}
-                              data-tooltip={t('deleteTooltip')}
-                            >
-                              <IconTrash />
-                            </button>
-                          </div>
-                        )}
                       </article>
                     )})}
                   </div>
@@ -2466,7 +2518,7 @@ function App() {
           onChange={setFormData}
           onClose={handleCloseModal}
           onSubmit={handleSaveLink}
-          onOpenReminder={openStandaloneReminder}
+          onOpenReminder={openReminderWithCurrentLink}
           t={t}
         />
       )}
@@ -2480,6 +2532,7 @@ function App() {
           onChange={setFormData}
           onClose={handleCloseImageModal}
           onSubmit={handleSaveImage}
+          onOpenReminder={openReminderWithoutLink}
           t={t}
         />
       )}
@@ -2536,6 +2589,7 @@ function App() {
           onClose={() => setEditTarget(null)}
           onSubmit={handleEditSubmit}
           isImage={editTarget?.type === 'image'}
+          onDelete={() => setDeleteTarget(editTarget)}
           t={t}
         />
       )}
@@ -2551,7 +2605,7 @@ function App() {
 
       {showReminderModal && (
         <ReminderModal
-          links={links}
+          links={[...links, ...(reminderLinkCandidate ? [reminderLinkCandidate] : [])]}
           monthDate={reminderMonth}
           formData={reminderForm}
           errorMessage={reminderError}
@@ -2561,6 +2615,11 @@ function App() {
           onSubmit={handleReminderSubmit}
           t={t}
           language={language}
+          linkLocked={reminderLinkLocked}
+          isEditing={Boolean(reminderEditTarget)}
+          editReminderId={reminderEditTarget?.id || ''}
+          onDelete={handleReminderDelete}
+          categoryPalette={categoryPalette}
         />
       )}
 
@@ -2650,7 +2709,18 @@ function Modal({ pendingUrl, pendingPreview, categories, formData, onChange, onC
             <p className="eyebrow">{t('modalLinkDetected')}</p>
             <h3>{t('modalLinkTitle')}</h3>
           </div>
-          <button className="close" onClick={onClose} aria-label={t('cancel')}>×</button>
+          <div className="modal-header-actions">
+            <button
+              type="button"
+              className="icon-button ghost"
+              aria-label={t('reminderNew')}
+              data-tooltip={t('reminderNew')}
+              onClick={onOpenReminder}
+            >
+              <IconBell />
+            </button>
+            <button className="close" onClick={onClose} aria-label={t('cancel')}>×</button>
+          </div>
         </header>
 
         <form className="modal-body" onSubmit={onSubmit}>
@@ -2704,17 +2774,13 @@ function Modal({ pendingUrl, pendingPreview, categories, formData, onChange, onC
               {t('add')}
             </button>
           </div>
-
-          <button type="button" className="ghost" onClick={onOpenReminder}>
-            {t('reminderNew')}
-          </button>
         </form>
       </div>
     </div>
   )
 }
 
-function ImageModal({ pendingImage, categories, formData, errorMessage, onChange, onClose, onSubmit, t }) {
+function ImageModal({ pendingImage, categories, formData, errorMessage, onChange, onClose, onSubmit, onOpenReminder, t }) {
   return (
     <div
       className="modal-backdrop"
@@ -2730,7 +2796,20 @@ function ImageModal({ pendingImage, categories, formData, errorMessage, onChange
             <p className="eyebrow">{t('imageDetected')}</p>
             <h3>{t('imageTitle')}</h3>
           </div>
-          <button className="close" onClick={onClose} aria-label={t('close')}>×</button>
+          <div className="modal-header-actions">
+            {onOpenReminder && (
+              <button
+                type="button"
+                className="icon-button ghost"
+                aria-label={t('reminderNew')}
+                data-tooltip={t('reminderNew')}
+                onClick={onOpenReminder}
+              >
+                <IconBell />
+              </button>
+            )}
+            <button className="close" onClick={onClose} aria-label={t('close')}>×</button>
+          </div>
         </header>
 
         <form className="modal-body" onSubmit={onSubmit}>
@@ -3125,7 +3204,7 @@ function ViewerModal({ link, onClose, t }) {
   )
 }
 
-function EditModal({ categories, formData, onChange, onClose, onSubmit, isImage, t }) {
+function EditModal({ categories, formData, onChange, onClose, onSubmit, onDelete, isImage, t }) {
   return (
     <div
       className="modal-backdrop"
@@ -3203,6 +3282,11 @@ function EditModal({ categories, formData, onChange, onClose, onSubmit, isImage,
           </label>
 
           <div className="modal-actions">
+            {onDelete && (
+              <button type="button" className="primary danger" onClick={onDelete}>
+                {t('delete')}
+              </button>
+            )}
             <button type="button" className="ghost" onClick={onClose}>
               {t('cancel')}
             </button>
@@ -3251,7 +3335,7 @@ function ConfirmDeleteModal({ title, onConfirm, onCancel, t }) {
   )
 }
 
-function ReminderModal({ links, monthDate, formData, errorMessage, onMonthChange, onChange, onClose, onSubmit, t, language }) {
+function ReminderModal({ links, monthDate, formData, errorMessage, onMonthChange, onChange, onClose, onSubmit, t, language, linkLocked = false, isEditing = false, editReminderId = '', onDelete, categoryPalette = {} }) {
   const days = buildCalendar(monthDate)
   const weekdays = t('weekdaysShort') || ['D', 'S', 'T', 'Q', 'Q', 'S', 'S']
 
@@ -3261,8 +3345,10 @@ function ReminderModal({ links, monthDate, formData, errorMessage, onMonthChange
   }
 
   const selectedDate = formData.date
-  const layoutClass = `reminder-layout ${formData.linkToggle ? 'with-links' : ''}`
-  const modalClass = `modal ${formData.linkToggle ? 'modal-wide' : ''}`
+  const showLinkPanel = formData.linkToggle && !linkLocked
+  const layoutClass = `reminder-layout ${showLinkPanel ? 'with-links' : ''}`
+  const modalClass = `modal ${showLinkPanel ? 'modal-wide' : ''}`
+  const headerTitle = isEditing ? t('reminderEditTitle') : t('reminderNew')
 
   return (
     <div
@@ -3276,22 +3362,24 @@ function ReminderModal({ links, monthDate, formData, errorMessage, onMonthChange
       <div className={modalClass}>
         <header className="modal-header">
           <div>
-            <p className="eyebrow">{t('reminderNew')}</p>
+            <p className="eyebrow">{headerTitle}</p>
             <h3>{t('reminderSubtitle')}</h3>
           </div>
           <div className="reminder-header-actions">
             <button className="close" onClick={onClose} aria-label={t('close')}>×</button>
-            <div className="reminder-toggle-inline">
-              <span className="muted">{t('reminderLinkToggle')}</span>
-              <label className="switch">
-                <input
-                  type="checkbox"
-                  checked={formData.linkToggle}
-                  onChange={(event) => onChange((prev) => ({ ...prev, linkToggle: event.target.checked }))}
-                />
-                <span className="slider" />
-              </label>
-            </div>
+            {!linkLocked && (
+              <div className="reminder-toggle-inline">
+                <span className="muted">{t('reminderLinkToggle')}</span>
+                <label className="switch">
+                  <input
+                    type="checkbox"
+                    checked={formData.linkToggle}
+                    onChange={(event) => onChange((prev) => ({ ...prev, linkToggle: event.target.checked }))}
+                  />
+                  <span className="slider" />
+                </label>
+              </div>
+            )}
           </div>
         </header>
 
@@ -3339,39 +3427,58 @@ function ReminderModal({ links, monthDate, formData, errorMessage, onMonthChange
               </div>
             </div>
 
-            {formData.linkToggle && (
+            {showLinkPanel && (
               <div className="reminder-links-panel">
                 <p className="eyebrow">{t('reminderLinkLabel')}</p>
                 <div className="link-select">
                   {links.length === 0 && <p className="muted">{t('reminderNone')}</p>}
-                  {links.map((link) => (
-                    <label key={link.id} className={`link-select__item ${formData.linkId === link.id ? 'active' : ''}`}>
-                      <input
-                        type="radio"
-                        name="reminder-link"
-                        value={link.id}
-                        checked={formData.linkId === link.id}
-                        onChange={(event) => onChange((prev) => ({ ...prev, linkId: event.target.value }))}
-                      />
-                      <div className="link-select__card">
-                        {link.thumbnail && (
-                          <div className="thumb small" aria-hidden="true">
-                            <img src={link.thumbnail} alt="" />
+                  {links.map((link) => {
+                    const categoryHue = link.category ? (categoryPalette[link.category] ?? getCategoryHue(link.category)) : 210
+                    return (
+                      <label key={link.id} className={`link-select__item ${formData.linkId === link.id ? 'active' : ''}`}>
+                        <input
+                          type="radio"
+                          name="reminder-link"
+                          value={link.id}
+                          checked={formData.linkId === link.id}
+                          onChange={(event) => onChange((prev) => ({ ...prev, linkId: event.target.value }))}
+                        />
+                        <div className="link-select__card">
+                          {link.thumbnail && (
+                            <div className="thumb small" aria-hidden="true">
+                              <img src={link.thumbnail} alt="" />
+                            </div>
+                          )}
+                          <div className="link-select__text">
+                            <strong>{link.title}</strong>
+                            {link.category && (
+                              <span
+                                className="pill subtle category-pill"
+                                style={{ '--category-hue': categoryHue }}
+                              >
+                                {link.category}
+                              </span>
+                            )}
                           </div>
-                        )}
-                        <div>
-                          <strong>{link.title}</strong>
-                          <p className="muted">{link.category}</p>
                         </div>
-                      </div>
-                    </label>
-                  ))}
+                      </label>
+                    )
+                  })}
                 </div>
               </div>
             )}
           </div>
 
           <div className="modal-actions">
+            {isEditing && onDelete && (
+              <button
+                type="button"
+                className="primary danger"
+                onClick={() => onDelete(editReminderId)}
+              >
+                {t('delete')}
+              </button>
+            )}
             <button type="button" className="ghost" onClick={onClose}>
               {t('cancel')}
             </button>

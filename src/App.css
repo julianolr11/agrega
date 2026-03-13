@@ -561,6 +561,22 @@ html, body {
   width: 100%;
 }
 
+.link-title-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.title-edit {
+  opacity: 0;
+  transition: opacity 120ms ease;
+}
+
+.link-card:hover .title-edit,
+.title-edit:focus-visible {
+  opacity: 1;
+}
+
 .link-title {
   color: var(--text-primary);
   text-decoration: none;
@@ -786,6 +802,25 @@ html, body {
   display: flex;
   align-items: flex-start;
   justify-content: space-between;
+}
+
+.modal-header-actions {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.modal-header-actions .icon-button.ghost {
+  width: 35px;
+  height: 35px;
+  color: #fff;
+  padding: 0;
+  margin: 0;
+}
+
+.modal-header-actions .icon-button.ghost:hover {
+  border-color: var(--accent);
+  background: rgba(118, 255, 215, 0.12);
 }
 
 .reminder-header-actions {
@@ -1142,6 +1177,9 @@ html, body {
   display: flex;
   flex-direction: column;
   gap: 10px;
+  max-height: 340px;
+  overflow: auto;
+  padding-right: 4px;
 }
 
 
@@ -1167,6 +1205,12 @@ html, body {
   display: flex;
   align-items: center;
   gap: 10px;
+}
+
+.link-select__text {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
 }
 
 .thumb.small {
@@ -1409,10 +1453,12 @@ html, body {
   background: transparent;
   border-color: var(--border-subtle);
   color: var(--text-primary);
-  width: 28px;
-  height: 28px;
+  width: 32px;
+  height: 32px;
   min-width: 28px;
   font-weight: 700;
+  margin: 0;
+  padding: 0;
 }
 
 .calendar-plus {
@@ -1519,6 +1565,7 @@ html, body {
   color: var(--text-primary);
   padding: 10px 14px;
   cursor: pointer;
+  transition: background 140ms ease, border-color 140ms ease, color 140ms ease, box-shadow 180ms ease, transform 140ms ease;
 }
 
 .primary {
@@ -1529,8 +1576,28 @@ html, body {
 }
 
 .primary.danger {
-  background: #ff6b6b;
-  color: #0b0f1a;
+  background: transparent;
+  color: #ff6b6b;
+  border: 1px solid #ff6b6b;
+}
+
+.ghost:hover {
+  background: rgba(255, 255, 255, 0.06);
+  border-color: var(--accent);
+  box-shadow: 0 10px 26px rgba(0, 0, 0, 0.25);
+  transform: translateY(-1px);
+}
+
+.primary:hover {
+  background: rgba(118, 255, 215, 0.9);
+  box-shadow: 0 10px 26px rgba(118, 255, 215, 0.25);
+  transform: translateY(-1px);
+}
+
+.primary.danger:hover {
+  background: rgba(255, 107, 107, 0.12);
+  box-shadow: 0 10px 26px rgba(255, 107, 107, 0.25);
+  transform: translateY(-1px);
 }
 
 @media (max-width: 960px) {
