@@ -1,7 +1,9 @@
 .app-shell {
   min-height: 100vh;
+  max-height: 100vh;
   display: flex;
   flex-direction: column;
+  overflow: hidden;
   color: var(--text-primary);
   background: radial-gradient(circle at 20% 20%, rgba(70, 103, 255, 0.14), transparent 30%),
     radial-gradient(circle at 80% 0%, rgba(94, 237, 204, 0.12), transparent 25%),
@@ -12,49 +14,77 @@ html, body {
   scrollbar-width: thin;
   scrollbar-color: rgba(94, 237, 204, 0.75) rgba(7, 10, 18, 0.96);
   background: #0b0f1a;
+  height: 100%;
+  overflow: hidden;
 }
 
 *::-webkit-scrollbar {
-  transform: translateX(-50%);
-  padding: 10px 14px;
-  border-radius: 12px;
-  background: rgba(118, 255, 215, 0.14);
-  border: 1px solid rgba(118, 255, 215, 0.5);
-  color: var(--text-primary);
-  font-size: 13px;
-  box-shadow: 0 14px 40px rgba(0, 0, 0, 0.3);
-  z-index: 120;
+  width: 8px;
+  height: 8px;
 }
 
-.brand {
+*::-webkit-scrollbar-thumb {
+  background: rgba(118, 255, 215, 0.5);
+  border-radius: 10px;
+}
+
+*::-webkit-scrollbar-track {
+  background: rgba(7, 10, 18, 0.9);
+}
+
+.qr-block {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  width: 100%;
+}
+
+.qr-box {
+  padding: 12px;
+  border-radius: 16px;
+  background: rgba(94, 237, 204, 0.08);
+  border: 1px solid rgba(94, 237, 204, 0.4);
+  box-shadow: 0 16px 36px rgba(0, 0, 0, 0.35);
   display: inline-flex;
   align-items: center;
-  gap: 10px;
-  min-height: 36px;
-  margin-left: 40px;
+  justify-content: center;
 }
 
 .brand img {
-  height: 36px;
+  height: auto;
   width: auto;
   display: block;
   filter: drop-shadow(0 8px 18px rgba(0, 0, 0, 0.35));
 }
 
 .badge {
-  background: rgba(94, 237, 204, 0.12);
-  border: 1px solid rgba(94, 237, 204, 0.5);
-  color: #a6ffe8;
-  padding: 6px 12px;
+  display: none;
   border-radius: 999px;
-  font-size: 13px;
+}
+
+.qr-pin {
+  margin: 0;
+  font-weight: 600;
+  width: 100%;
+  text-align: center;
+}
+
+.muted.center {
+  text-align: center;
+  width: 100%;
 }
 
 .topbar {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 24px 24px 6px;
+  padding-top: 15px;
+  padding-right: 20px;
+  padding-bottom: 6px;
+  padding-left: 24px;
   gap: 12px;
 }
 
@@ -69,6 +99,9 @@ html, body {
   grid-template-columns: 260px 1fr;
   gap: 18px;
   padding: 18px 14px 24px;
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow: hidden;
 }
 
 .sidebar {
@@ -80,6 +113,8 @@ html, body {
   flex-direction: column;
   gap: 10px;
   box-shadow: 0 20px 50px rgba(0, 0, 0, 0.25);
+  overflow: auto;
+  min-height: 0;
 }
 
 .cta {
@@ -189,6 +224,8 @@ html, body {
   display: flex;
   flex-direction: column;
   gap: 16px;
+  overflow: auto;
+  min-height: 0;
 }
 
 .capture-card {
@@ -211,6 +248,20 @@ html, body {
 .muted {
   margin: 4px 0 0;
   color: var(--text-secondary);
+}
+
+.sync-progress {
+  display: none;
+}
+
+.icon-button.is-spinning svg {
+  animation: spin 0.9s linear infinite;
+  transform-origin: center;
+}
+
+@keyframes spin {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
 }
 
 .input-row {
@@ -443,6 +494,8 @@ html, body {
   position: relative;
   overflow: visible;
   transition: border-color 0.2s ease;
+  content-visibility: auto;
+  contain-intrinsic-size: 320px 200px;
 }
 
 .link-card:hover {

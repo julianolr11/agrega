@@ -1,5 +1,7 @@
 import { useEffect, useMemo, useRef, useState, useCallback } from 'react'
 import emailjs from '@emailjs/browser'
+import { QRCode } from 'react-qr-code'
+import { compressToEncodedURIComponent } from 'lz-string'
 import './App.css'
 
 const defaultCategoriesByLang = {
@@ -20,6 +22,14 @@ const translations = {
     linksLabel: 'links',
     close: 'Fechar',
     settings: 'Configurações',
+    pairingButton: 'QR de pareamento',
+    pairingTitle: 'Sincronizar com o celular',
+    pairingSubtitle: 'Escaneie no app mobile para juntar os links. O PIN deve bater.',
+    pairingPinLabel: 'PIN',
+    pairingPayloadLabel: 'Código',
+    pairingCopy: 'Copiar código',
+    pairingCopied: 'Código copiado',
+    pairingScanHint: 'No app mobile, toque em Escanear QR e confirme o PIN exibido aqui.',
     captureEyebrow: 'Cole o link, imagem, texto ou escreva o que quiser guardar',
     captureTitle: 'Capture links sem atrito',
     captureSubtitle: 'Cole, clique no "+" e dê um nome rápido. Nós guardamos na categoria certa.',
@@ -166,6 +176,14 @@ const translations = {
     linksLabel: 'links',
     close: 'Close',
     settings: 'Settings',
+    pairingButton: 'Pair via QR',
+    pairingTitle: 'Sync with mobile',
+    pairingSubtitle: 'Scan from the mobile app to merge links. PIN must match.',
+    pairingPinLabel: 'PIN',
+    pairingPayloadLabel: 'Code',
+    pairingCopy: 'Copy code',
+    pairingCopied: 'Code copied',
+    pairingScanHint: 'On mobile, tap Scan QR and confirm the PIN shown here.',
     captureEyebrow: 'Paste link, image, text, or type what you want to save',
     captureTitle: 'Capture links effortlessly',
     captureSubtitle: 'Paste, hit "+" and name it quickly. We store it in the right category.',
@@ -364,10 +382,30 @@ const IconCog = () => (
   </svg>
 )
 
+const IconQr = () => (
+  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+    <rect x="3" y="3" width="7" height="7" rx="1" />
+    <rect x="14" y="3" width="7" height="7" rx="1" />
+    <rect x="3" y="14" width="7" height="7" rx="1" />
+    <path d="M14 14h3v3h-3z" />
+    <path d="M17 17h3v3h-3z" />
+    <path d="M21 14v3" />
+    <path d="M14 21h3" />
+  </svg>
+)
+
 const IconView = () => (
   <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
     <path d="M1 12s4-7 11-7 11 7 11 7-4 7-11 7-11-7-11-7Z" />
     <circle cx="12" cy="12" r="3" />
+  </svg>
+)
+
+const IconRefresh = () => (
+  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+    <polyline points="23 4 23 10 17 10" />
+    <polyline points="1 20 1 14 7 14" />
+    <path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15" />
   </svg>
 )
 
@@ -381,27 +419,23 @@ const isValidUrl = (value) => {
   }
 }
 
+const YT_ICON = 'https://icons.duckduckgo.com/ip3/youtube.com.ico'
+const TIKTOK_ICON = 'https://www.tiktok.com/favicon.ico'
+const IG_ICON = 'https://icons.duckduckgo.com/ip3/instagram.com.ico'
+
 const getYouTubeThumbnail = (url) => {
+  // Use icon instead of thumbnails (including shorts)
+  return YT_ICON
+}
+
+const isYouTubeUrl = (url) => {
   try {
     const parsed = new URL(url)
     const host = parsed.hostname
-    if (host.includes('youtube.com')) {
-      const id = parsed.searchParams.get('v')
-      if (id) return `https://img.youtube.com/vi/${id}/hqdefault.jpg`
-
-      const shortsMatch = parsed.pathname.match(/\/shorts\/([\w-]{5,})/)
-      if (shortsMatch?.[1]) return `https://img.youtube.com/vi/${shortsMatch[1]}/hqdefault.jpg`
-    }
-    if (host.includes('youtu.be')) {
-      const parts = parsed.pathname.split('/').filter(Boolean)
-      if (parts[0] === 'shorts' && parts[1]) return `https://img.youtube.com/vi/${parts[1]}/hqdefault.jpg`
-      const id = parts[0]
-      if (id) return `https://img.youtube.com/vi/${id}/hqdefault.jpg`
-    }
+    return host.includes('youtube.com') || host.includes('youtu.be')
   } catch (error) {
-    return ''
+    return false
   }
-  return ''
 }
 
 const getCategoryHue = (value = '') => {
@@ -410,6 +444,43 @@ const getCategoryHue = (value = '') => {
     hash = value.charCodeAt(index) + ((hash << 5) - hash)
   }
   return Math.abs(hash) % 360
+}
+
+const buildCategoryPalette = (categories = [], currentPalette = {}) => {
+  const goldenAngle = 137.508
+  const normalizeHue = (value) => {
+    const number = Number(value)
+    if (!Number.isFinite(number)) return null
+    const wrapped = number % 360
+    return wrapped < 0 ? wrapped + 360 : wrapped
+  }
+
+  const palette = {}
+  const usedHues = new Set()
+
+  categories.forEach((category) => {
+    const hue = normalizeHue(currentPalette[category])
+    if (category && hue !== null && !usedHues.has(Math.round(hue))) {
+      palette[category] = Math.round(hue)
+      usedHues.add(Math.round(hue))
+    }
+  })
+
+  categories.forEach((category, index) => {
+    if (!category) return
+    if (palette[category] !== undefined) return
+    let candidate = (210 + index * goldenAngle) % 360
+    let attempts = 0
+    while (usedHues.has(Math.round(candidate)) && attempts < 720) {
+      candidate = (candidate + goldenAngle) % 360
+      attempts += 1
+    }
+    const hue = Math.round(candidate)
+    palette[category] = hue
+    usedHues.add(hue)
+  })
+
+  return palette
 }
 
 const isTikTokUrl = (url) => {
@@ -551,11 +622,25 @@ const fetchMercadoLivreThumbnail = async (url) => {
   return ''
 }
 
+const fetchOgImage = async (url) => {
+  try {
+    const target = `https://r.jina.ai/${url}`
+    const response = await fetch(target)
+    if (!response.ok) return ''
+    const text = await response.text()
+    const ogMatch = text.match(/<meta\s+property="og:image"\s+content="(.*?)"/i)
+      || text.match(/<meta\s+name="twitter:image"\s+content="(.*?)"/i)
+    return ogMatch?.[1] || ''
+  } catch (error) {
+    return ''
+  }
+}
+
 const getThumbnailUrl = (url) => {
   const yt = getYouTubeThumbnail(url)
   if (yt) return yt
-  if (isInstagramUrl(url)) return 'https://icons.duckduckgo.com/ip3/instagram.com.ico'
-  if (isTikTokUrl(url)) return ''
+  if (isInstagramUrl(url)) return IG_ICON
+  if (isTikTokUrl(url)) return TIKTOK_ICON
   if (isMercadoLivreUrl(url)) return 'https://icons.duckduckgo.com/ip3/mercadolivre.com.br.ico'
   try {
     const parsed = new URL(url)
@@ -569,8 +654,9 @@ const getFaviconUrl = (url) => {
   try {
     const parsed = new URL(url)
     const host = parsed.hostname
-    if (isTikTokUrl(url)) return 'https://www.tiktok.com/favicon.ico'
-    if (isInstagramUrl(url)) return 'https://icons.duckduckgo.com/ip3/instagram.com.ico'
+    if (isTikTokUrl(url)) return TIKTOK_ICON
+    if (isInstagramUrl(url)) return IG_ICON
+    if (isYouTubeUrl(url)) return YT_ICON
     if (isMercadoLivreUrl(url)) return 'https://icons.duckduckgo.com/ip3/mercadolivre.com.br.ico'
     // DuckDuckGo icon service (ico) is lightweight and more permissive
     return `https://icons.duckduckgo.com/ip3/${host}.ico`
@@ -591,7 +677,20 @@ const getDomain = (url) => {
 const getLinkLabel = (link, t) => {
   if (link?.type === 'image') return t?.('badgeImage') || 'Imagem colada'
   if (link?.type === 'text') return t?.('badgeText') || 'Texto colado'
+  if (isTikTokUrl(link?.url)) return 'tiktok.com'
+  if (isYouTubeUrl(link?.url)) return 'youtube.com'
+  if (isInstagramUrl(link?.url)) return 'instagram.com'
   return getDomain(link.url)
+}
+
+const getSafeThumbnail = (link) => {
+  if (!link) return ''
+  if (isInstagramUrl(link.url)) return IG_ICON
+  if (link.thumbnail && link.thumbnail.includes('instagram')) return IG_ICON
+  if (isTikTokUrl(link.url)) return TIKTOK_ICON
+  if (isYouTubeUrl(link.url)) return YT_ICON
+  if (link.thumbnail) return link.thumbnail
+  return getThumbnailUrl(link.url)
 }
 
 const getTextSnippet = (value = '') => {
@@ -614,6 +713,17 @@ const isValidEmail = (value = '') => {
 const getMonthLabel = (date, locale = 'pt-BR') => {
   const targetLocale = locale || 'pt-BR'
   return date.toLocaleDateString(targetLocale, { month: 'long', year: 'numeric' })
+}
+
+const compressImageData = (value) => {
+  if (!value) return ''
+  if (!value.startsWith('data:')) return value
+  try {
+    const compressed = compressToEncodedURIComponent(value)
+    return compressed.length > 6000 ? '' : `data:lz:${compressed}`
+  } catch (error) {
+    return ''
+  }
 }
 
 const buildCalendar = (monthDate) => {
@@ -667,6 +777,7 @@ function App() {
   })
   const [links, setLinks] = useState([])
   const [categories, setCategories] = useState(getDefaultCategories('pt-BR'))
+  const [categoryPalette, setCategoryPalette] = useState(() => buildCategoryPalette(getDefaultCategories('pt-BR')))
   const [selectedCategory, setSelectedCategory] = useState('all')
   const [searchQuery, setSearchQuery] = useState('')
   const [filterOpen, setFilterOpen] = useState(false)
@@ -704,6 +815,45 @@ function App() {
     return new Date(now.getFullYear(), now.getMonth(), 1)
   })
   const [reminderViewDate, setReminderViewDate] = useState(new Date().toISOString().slice(0, 10))
+  const [showPairingModal, setShowPairingModal] = useState(false)
+  const [pairingInfo, setPairingInfo] = useState({ pin: '', host: '', port: '', payload: '', endpoint: '', oversize: false })
+  const [pairingToast, setPairingToast] = useState('')
+  const [syncHash, setSyncHash] = useState('')
+  const [syncing, setSyncing] = useState(false)
+  const [syncProgress, setSyncProgress] = useState({ active: false, total: 0, current: 0, label: '' })
+  const startSyncProgress = useCallback((label, total) => {
+    const safeTotal = Math.max(total || 0, 1)
+    setSyncProgress({ active: true, total: safeTotal, current: 0, label })
+  }, [])
+
+  const updateSyncProgress = useCallback((current) => {
+    setSyncProgress((prev) => {
+      const capped = Math.min(current, prev.total || 1)
+      return { ...prev, current: capped }
+    })
+  }, [])
+
+  const finishSyncProgress = useCallback(() => {
+    setSyncProgress((prev) => ({ ...prev, current: prev.total || 1 }))
+    setTimeout(() => setSyncProgress({ active: false, total: 0, current: 0, label: '' }), 700)
+  }, [])
+
+  const pushCurrentSnapshot = useCallback(async () => {
+    if (!window?.agrega?.syncPush) return null
+    const payload = {
+      type: 'agrega-sync',
+      version: 1,
+      generatedAt: new Date().toISOString(),
+      pin: pairingInfo.pin,
+      language,
+      categories,
+      links,
+      reminders,
+      categoryPalette,
+    }
+    const response = await window.agrega.syncPush({ pin: pairingInfo.pin, payload })
+    return response
+  }, [categories, language, links, pairingInfo.pin, reminders])
 
   useEffect(() => {
     const savedEmail = localStorage.getItem('agrega_email') || ''
@@ -716,10 +866,12 @@ function App() {
     }
 
     const savedLang = localStorage.getItem('agrega_lang') || 'pt-BR'
+    const defaultCategories = getDefaultCategories(savedLang)
     setLanguage(savedLang)
     setSettingsForm((prev) => ({ ...prev, language: savedLang }))
-    setCategories(getDefaultCategories(savedLang))
-    setFormData((prev) => ({ ...prev, category: getDefaultCategories(savedLang)[0] || '' }))
+    setCategories(defaultCategories)
+    setCategoryPalette((prev) => buildCategoryPalette(defaultCategories, prev))
+    setFormData((prev) => ({ ...prev, category: defaultCategories[0] || '' }))
 
     const savedDataRaw = localStorage.getItem('agrega_data')
     if (savedDataRaw) {
@@ -727,12 +879,7 @@ function App() {
         const parsed = JSON.parse(savedDataRaw)
         let hydratedLinks = []
 
-        if (Array.isArray(parsed.categories)) {
-          setCategories((prev) => {
-            const merged = [...prev, ...parsed.categories.filter(Boolean)]
-            return Array.from(new Set(merged))
-          })
-        }
+        const importedCategories = Array.isArray(parsed.categories) ? parsed.categories.filter(Boolean) : []
 
         if (Array.isArray(parsed.links)) {
           hydratedLinks = parsed.links.map((item) => normalizeLink(item))
@@ -740,9 +887,15 @@ function App() {
         }
 
         const linkCategories = hydratedLinks.map((link) => link.category).filter(Boolean)
-        if (linkCategories.length > 0) {
-          setCategories((prev) => Array.from(new Set([...prev, ...linkCategories])))
-        }
+        const derivedCategories = Array.from(new Set([
+          ...defaultCategories,
+          ...importedCategories,
+          ...linkCategories,
+        ]))
+
+        setCategories(derivedCategories)
+        setCategoryPalette((prev) => buildCategoryPalette(derivedCategories, parsed.categoryPalette || prev))
+        setFormData((prev) => ({ ...prev, category: derivedCategories[0] || prev.category }))
 
         if (Array.isArray(parsed.reminders)) {
           const linkById = new Map(hydratedLinks.map((link) => [link.id, link]))
@@ -793,15 +946,20 @@ function App() {
   }, [language, links])
 
   useEffect(() => {
+    setCategoryPalette((prev) => buildCategoryPalette(categories, prev))
+  }, [categories])
+
+  useEffect(() => {
     const payload = {
       version: 1,
       categories,
       links,
       reminders,
       language,
+      categoryPalette,
     }
     localStorage.setItem('agrega_data', JSON.stringify(payload))
-  }, [categories, links, reminders, language])
+  }, [categories, links, reminders, language, categoryPalette])
 
   useEffect(() => {
     if (!filterOpen) return undefined
@@ -853,37 +1011,83 @@ function App() {
     return () => window.removeEventListener('keydown', handleKeyDown)
   }, [showModal, showImageModal, showTextModal, showEmailModal, showSettingsModal, showReminderModal, viewerTarget, editTarget, deleteTarget])
 
-  const refreshMercadoLivreThumb = async (linkId, url) => {
+  const refreshMercadoLivreThumb = useCallback(async (linkId, url) => {
     const mlThumb = await fetchMercadoLivreThumbnail(url)
     if (!mlThumb) return
-    setLinks((prev) => prev.map((item) => (item.id === linkId ? { ...item, thumbnail: mlThumb } : item)))
-  }
+    setLinks((prev) => prev.map((item) => {
+      if (item.id !== linkId) return item
+      if (item.thumbnail === mlThumb) return item
+      return { ...item, thumbnail: mlThumb }
+    }))
+  }, [])
 
   const refreshTikTokThumb = useCallback(async (linkId, url) => {
-    const thumb = await fetchTikTokThumbnail(url)
-    if (!thumb) return
-    setLinks((prev) => prev.map((item) => (item.id === linkId ? { ...item, thumbnail: thumb } : item)))
+    setLinks((prev) => prev.map((item) => {
+      if (item.id !== linkId) return item
+      if (item.thumbnail === TIKTOK_ICON && item.favicon === TIKTOK_ICON) return item
+      return { ...item, thumbnail: TIKTOK_ICON, favicon: TIKTOK_ICON }
+    }))
+  }, [])
+
+  const refreshYouTubeThumb = useCallback(async (linkId, url) => {
+    setLinks((prev) => prev.map((item) => {
+      if (item.id !== linkId) return item
+      if (item.thumbnail === YT_ICON && item.favicon === YT_ICON) return item
+      return { ...item, thumbnail: YT_ICON, favicon: YT_ICON }
+    }))
   }, [])
 
   const refreshInstagramThumb = useCallback(async (linkId, url) => {
     const thumb = await fetchInstagramThumbnail(url)
     if (!thumb) return
-    setLinks((prev) => prev.map((item) => (item.id === linkId ? { ...item, thumbnail: thumb } : item)))
+    setLinks((prev) => prev.map((item) => {
+      if (item.id !== linkId) return item
+      if (item.thumbnail === thumb) return item
+      return { ...item, thumbnail: thumb }
+    }))
+  }, [])
+
+  const refreshGenericPreview = useCallback(async (linkId, url) => {
+    if (isTikTokUrl(url) || isYouTubeUrl(url)) return
+    const ogImage = await fetchOgImage(url)
+    if (!ogImage) return
+    setLinks((prev) => prev.map((item) => {
+      if (item.id !== linkId) return item
+      return {
+        ...item,
+        thumbnail: item.thumbnail || ogImage,
+        favicon: item.favicon || getFaviconUrl(url),
+      }
+    }))
   }, [])
 
   useEffect(() => {
     links.forEach((link) => {
       if (link.type !== 'link') return
-      if (link.thumbnail) return
+      if (isTikTokUrl(link.url)) {
+        if (link.thumbnail === TIKTOK_ICON && link.favicon === TIKTOK_ICON) return
+        refreshTikTokThumb(link.id, link.url)
+        return
+      }
+      if (isYouTubeUrl(link.url)) {
+        if (link.thumbnail === YT_ICON && link.favicon === YT_ICON) return
+        refreshYouTubeThumb(link.id, link.url)
+        return
+      }
+      if (link.thumbnail && link.favicon) return
       if (isMercadoLivreUrl(link.url)) {
         refreshMercadoLivreThumb(link.id, link.url)
         return
       }
       if (isInstagramUrl(link.url)) {
         refreshInstagramThumb(link.id, link.url)
+        return
+      }
+      if (!link.thumbnail || !link.favicon) {
+        refreshGenericPreview(link.id, link.url)
       }
     })
-  }, [links, refreshMercadoLivreThumb, refreshInstagramThumb])
+  }, [links, refreshMercadoLivreThumb, refreshInstagramThumb, refreshGenericPreview, refreshTikTokThumb, refreshYouTubeThumb])
 
   const categoryCounts = useMemo(() => {
     const counts = categories.reduce((acc, category) => {
@@ -1015,6 +1219,7 @@ function App() {
         categories,
         links,
         reminders,
+        categoryPalette,
       }
 
       const blob = new Blob([JSON.stringify(payload, null, 2)], { type: 'application/json' })
@@ -1073,8 +1278,10 @@ function App() {
       ]))
 
       setCategories(derivedCategories)
+      setCategoryPalette((prev) => buildCategoryPalette(derivedCategories, parsed.categoryPalette || prev))
       setLinks(importedLinks)
       setReminders(importedReminders)
+      setFormData((prev) => ({ ...prev, category: derivedCategories[0] || prev.category }))
 
       setSelectedCategory('all')
       setView('dashboard')
@@ -1641,22 +1848,230 @@ function App() {
     setReminderError('')
   }
 
+  const applyRemotePayload = useCallback((payload = {}, nextHash = '') => {
+    const targetLanguage = payload.language || language
+
+    if (payload.language) {
+      setLanguage(targetLanguage)
+      setSettingsForm((prev) => ({ ...prev, language: targetLanguage }))
+    }
+
+    const importedCategories = Array.isArray(payload.categories) ? payload.categories.filter(Boolean) : []
+    const importedLinks = Array.isArray(payload.links) ? payload.links.map((item) => normalizeLink(item)) : []
+    const linkById = new Map(importedLinks.map((link) => [link.id, link]))
+    const importedReminders = Array.isArray(payload.reminders)
+      ? payload.reminders.map((item) => {
+        const linkId = item.link?.id
+        const linked = linkId ? linkById.get(linkId) : null
+        return {
+          id: item.id || (crypto.randomUUID ? crypto.randomUUID() : String(Date.now())),
+          subject: item.subject || '',
+          date: item.date || new Date().toISOString().slice(0, 10),
+          link: linked || null,
+        }
+      })
+      : []
+
+    // Derivar categorias mesmo que o payload não envie categories
+    const derivedCategories = Array.from(new Set([
+      ...getDefaultCategories(targetLanguage),
+      ...importedCategories,
+      ...importedLinks.map((link) => link.category).filter(Boolean),
+    ])).sort((a, b) => a.localeCompare(b, targetLanguage, { sensitivity: 'base' }))
+
+    setCategories(derivedCategories)
+    setCategoryPalette((prev) => buildCategoryPalette(derivedCategories, payload.categoryPalette || prev))
+    setLinks(importedLinks)
+    setReminders(importedReminders)
+    setSelectedCategory('all')
+    setView('dashboard')
+    if (nextHash) setSyncHash(nextHash)
+  }, [language, normalizeLink])
+
+  const getDesktopSyncInfo = useCallback(async () => {
+    if (typeof window === 'undefined' || !window?.agrega?.syncGet) return null
+    try {
+      return await window.agrega.syncGet()
+    } catch (error) {
+      return null
+    }
+  }, [])
+
+  const buildPairingPayload = useCallback(async () => {
+    const desktopSync = await getDesktopSyncInfo()
+    const pin = String(Math.floor(1000 + Math.random() * 9000))
+
+    const capped = (value, limit) => (value || '').slice(0, limit)
+
+    const sanitizeLink = (link, tight) => {
+      const titleLimit = tight ? 40 : 60
+      const urlLimit = tight ? 160 : 220
+      const contentLimit = tight ? 60 : 100
+      const categoryLimit = tight ? 25 : 35
+
+      const remoteUrl = link.url?.startsWith('http') ? capped(link.url, urlLimit) : ''
+
+      return {
+        id: link.id,
+        title: capped(link.title, titleLimit),
+        url: link.type === 'image' ? remoteUrl : capped(link.url || '', urlLimit),
+        category: capped(link.category, categoryLimit),
+        type: link.type,
+        content: link.type === 'text' ? capped(link.content || '', contentLimit) : '',
+        createdAt: link.createdAt,
+      }
+    }
+
+    const sortByDate = (list) => list.slice().sort((a, b) => parseDateSafe(b.createdAt) - parseDateSafe(a.createdAt))
+
+    const baseLinks = sortByDate(links).map((link) => sanitizeLink(link, false)).slice(0, 20)
+    const categoriesUsed = new Set(baseLinks.map((l) => l.category).filter(Boolean))
+    const categoriesTrimmed = Array.from(categoriesUsed).map((c) => capped(c, 25))
+
+    const endpoint = desktopSync?.host && desktopSync?.port ? `http://${desktopSync.host}:${desktopSync.port}/sync` : ''
+
+    const snapshotBase = {
+      type: 'agrega-sync',
+      version: 1,
+      generatedAt: new Date().toISOString(),
+      pin,
+      endpoint,
+      hash: desktopSync?.hash || '',
+      language,
+      categories: categoriesTrimmed,
+      categoryPalette: buildCategoryPalette(categoriesTrimmed, categoryPalette),
+      links: baseLinks,
+      reminders: [],
+    }
+
+    const minimalPayload = endpoint ? `agrega-sync:v1:${pin}:${desktopSync?.host || ''}:${desktopSync?.port || ''}` : `agrega-sync:v1:${pin}`
+    const pairingInfo = { pin, host: desktopSync?.host || '', port: desktopSync?.port || '', payload: minimalPayload, oversize: false, endpoint }
+
+    if (window?.agrega?.syncPush) {
+      try {
+        startSyncProgress('Enviando', baseLinks.length || 1)
+        await window.agrega.syncPush({ pin, payload: snapshotBase })
+        updateSyncProgress(baseLinks.length || 1)
+        finishSyncProgress()
+      } catch (error) {
+        // ignore sync push errors; QR still works
+        finishSyncProgress()
+      }
+    }
+
+    return pairingInfo
+  }, [categoryPalette, finishSyncProgress, getDesktopSyncInfo, language, links, startSyncProgress, updateSyncProgress])
+
+  const pairingString = useMemo(() => pairingInfo?.payload || '', [pairingInfo])
+
+  const pullRemoteSnapshot = useCallback(async (pin, endpoint) => {
+    if (!pin || !endpoint) return
+    if (syncing) return
+    startSyncProgress('Recebendo', links.length || 1)
+    setSyncing(true)
+    let applied = false
+    try {
+      const url = `${endpoint}?pin=${encodeURIComponent(pin)}`
+      const response = await fetch(url)
+      if (!response.ok) return
+      const data = await response.json()
+      const remoteHash = data?.hash || ''
+      if (remoteHash && syncHash && remoteHash === syncHash) return
+      if (data?.payload) {
+        const totalLinks = Array.isArray(data.payload?.links) ? data.payload.links.length : 0
+        if (totalLinks > 0) {
+          startSyncProgress('Recebendo', totalLinks)
+          updateSyncProgress(Math.max(1, Math.floor(totalLinks * 0.4)))
+        }
+        applyRemotePayload(data.payload, remoteHash)
+        updateSyncProgress(totalLinks || 1)
+        applied = true
+      }
+    } catch (error) {
+      // ignore fetch errors
+    } finally {
+      finishSyncProgress()
+      setSyncing(false)
+      if (applied && showPairingModal) {
+        setShowPairingModal(false)
+      }
+    }
+  }, [applyRemotePayload, finishSyncProgress, links.length, showPairingModal, startSyncProgress, syncHash, syncing, updateSyncProgress])
+
+  const openPairing = async () => {
+    const info = await buildPairingPayload()
+    setPairingInfo(info)
+    setShowPairingModal(true)
+    setPairingToast('')
+    pullRemoteSnapshot(info.pin, info.endpoint)
+  }
+
+  const syncNow = useCallback(async () => {
+    if (!pairingInfo?.pin || !pairingInfo?.endpoint) {
+      openPairing()
+      return
+    }
+    startSyncProgress('Enviando', links.length || 1)
+    setSyncing(true)
+    try {
+      await pushCurrentSnapshot()
+      startSyncProgress('Recebendo', links.length || 1)
+      await pullRemoteSnapshot(pairingInfo.pin, pairingInfo.endpoint)
+    } catch (error) {
+    } finally {
+      finishSyncProgress()
+      setSyncing(false)
+    }
+  }, [finishSyncProgress, links.length, openPairing, pairingInfo?.endpoint, pairingInfo?.pin, pullRemoteSnapshot, pushCurrentSnapshot, startSyncProgress])
+
+  const handleCopyPairing = async () => {
+    if (!pairingString) return
+    try {
+      await navigator.clipboard.writeText(pairingString)
+      setPairingToast(t('pairingCopied'))
+      setTimeout(() => setPairingToast(''), 1400)
+    } catch (error) {
+      setPairingToast('')
+    }
+  }
+
+  useEffect(() => {
+    if (!pairingInfo?.pin || !pairingInfo?.endpoint) return undefined
+    // Poll even com modal fechado para capturar alterações do mobile
+    const interval = setInterval(() => {
+      pullRemoteSnapshot(pairingInfo.pin, pairingInfo.endpoint)
+    }, 4000)
+    return () => clearInterval(interval)
+  }, [pairingInfo, pullRemoteSnapshot])
+
   return (
     <div className="app-shell">
       <header className="topbar">
         <div className="brand" aria-label="Agrega">
-          <img src={logoSrc} alt="Agrega" />
+          <img
+            src={logoSrc}
+            alt="Agrega"
+            style={{ width: '200px', paddingLeft: '40px' }}
+          />
         </div>
         <div className="topbar-right">
           <div className="badge">{links.length} {t('linksLabel')}</div>
+          <button
+            className={`icon-button ${syncProgress.active || syncing ? 'is-spinning' : ''}`}
+            aria-label="Sync agora"
+            data-tooltip="Sync agora"
+            onClick={syncNow}
+          >
+            <IconRefresh />
+          </button>
+          <button className="icon-button" aria-label={t('pairingButton')} data-tooltip={t('pairingButton')} onClick={openPairing}>
+            <IconQr />
+          </button>
           <button className="icon-button" aria-label={t('settings')} data-tooltip={t('settings')} onClick={openSettings}>
             <IconCog />
           </button>
         </div>
       </header>
-
-      {actionMessage && <div className="toast">{actionMessage}</div>}
-
       <div className="content">
         <aside className="sidebar">
           <button className="ghost-cta" onClick={() => setView('dashboard')}>
@@ -1843,15 +2258,16 @@ function App() {
                 {links.length > 0 && (
                   <div className="link-grid">
                     {visibleLinks.map((link) => {
-                      const displayThumb = link.thumbnail || (link.type === 'link' ? getThumbnailUrl(link.url) : '')
+                      const displayThumb = link.type === 'link' ? getSafeThumbnail(link) : link.thumbnail
                       const bodyClass = displayThumb ? 'link-card__body' : 'link-card__body no-thumb'
+                      const categoryHue = categoryPalette[link.category] ?? getCategoryHue(link.category || '')
                       return (
                         <article className={`link-card ${editMode ? 'editable' : ''}`} key={link.id}>
                         <div className="link-card__content">
                           <div className="link-card__top">
                             <span
                               className="pill subtle category-pill"
-                              style={{ '--category-hue': getCategoryHue(link.category || '') }}
+                              style={{ '--category-hue': categoryHue }}
                             >
                               {link.category}
                             </span>
@@ -1860,7 +2276,15 @@ function App() {
                           <div className={bodyClass}>
                             {displayThumb && (
                               <div className="thumb" aria-hidden="true">
-                                <img src={displayThumb} alt="" />
+                                <img
+                                  src={displayThumb}
+                                  alt=""
+                                  loading="lazy"
+                                  onError={(event) => {
+                                    // Hide broken previews to avoid broken-image icon
+                                    event.currentTarget.style.display = 'none'
+                                  }}
+                                />
                               </div>
                             )}
                             <div className="link-card__text">
@@ -1879,6 +2303,7 @@ function App() {
                                       <img
                                         src={link.favicon}
                                         alt=""
+                                        loading="lazy"
                                         onError={(event) => {
                                           event.currentTarget.style.display = 'none'
                                         }}
@@ -2051,6 +2476,72 @@ function App() {
         />
       )}
 
+      {showPairingModal && (
+        <PairingModal
+          pin={pairingInfo.pin}
+          host={pairingInfo.host}
+          port={pairingInfo.port}
+          dataString={pairingString}
+          onClose={() => setShowPairingModal(false)}
+          onCopy={handleCopyPairing}
+          toast={pairingToast}
+          t={t}
+        />
+      )}
+
+    </div>
+  )
+}
+
+function PairingModal({ pin, host, port, dataString, onClose, onCopy, toast, t }) {
+  const qrMax = 23648
+  const qrAvailable = Boolean(dataString) && dataString.length <= qrMax
+  const qrValue = qrAvailable ? dataString.slice(0, qrMax) : ''
+  return (
+    <div
+      className="modal-backdrop"
+      role="dialog"
+      aria-modal="true"
+      onClick={(event) => {
+        if (event.target === event.currentTarget) onClose()
+      }}
+    >
+      <div className="modal">
+        <header className="modal-header">
+          <div>
+            <p className="eyebrow">{t('pairingButton')}</p>
+            <h3>{t('pairingTitle')}</h3>
+            <p className="muted">{t('pairingSubtitle')}</p>
+          </div>
+          <button className="close" onClick={onClose} aria-label={t('close')}>×</button>
+        </header>
+
+        <div className="modal-body">
+          <div className="qr-block">
+            {qrAvailable ? (
+              <div className="qr-box" aria-label="QR code">
+                <QRCode value={qrValue || 'agrega-sync'} size={180} fgColor="#6ff3d6" bgColor="#0f1624" level="L" />
+              </div>
+            ) : (
+              <div className="qr-box qr-box-placeholder" aria-label="QR unavailable">
+                <p className="muted center">QR indisponível — use Copiar código</p>
+              </div>
+            )}
+            <p className="qr-pin">{t('pairingPinLabel')}: <strong>{pin || '----'}</strong></p>
+            <p className="muted center">{t('pairingScanHint')}</p>
+          </div>
+
+          <div className="modal-actions">
+            <button type="button" className="ghost" onClick={onClose}>
+              {t('close')}
+            </button>
+            <button type="button" className="primary" onClick={onCopy}>
+              {t('pairingCopy')}
+            </button>
+          </div>
+          {toast && <div className="toast inline">{toast}</div>}
+        </div>
+      </div>
     </div>
   )
 }

@@ -1,16 +1,21 @@
-# React + Vite
+# Agrega Desktop (Electron + Vite)
 
-This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
+## Rodar em desenvolvimento
 
-Currently, two official plugins are available:
+```bash
+npm install
+npm run dev
+```
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Babel](https://babeljs.io/) (or [oxc](https://oxc.rs) when used in [rolldown-vite](https://vite.dev/guide/rolldown)) for Fast Refresh
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/) for Fast Refresh
+## Build desktop
 
-## React Compiler
+```bash
+npm run build
+```
 
-The React Compiler is not enabled on this template because of its impact on dev & build performances. To add it, see [this documentation](https://react.dev/learn/react-compiler/installation).
+## Parear com o mobile via QR
 
-## Expanding the ESLint configuration
-
-If you are developing a production application, we recommend using TypeScript with type-aware lint rules enabled. Check out the [TS template](https://github.com/vitejs/vite/tree/main/packages/create-vite/template-react-ts) for information on how to integrate TypeScript and [`typescript-eslint`](https://typescript-eslint.io) in your project.
+1. Abra o app desktop e clique no ícone de QR no topo ao lado de Configurações.
+2. No app mobile, toque em "Escanear QR" e leia o código.
+3. Confirme que o PIN exibido no desktop é o mesmo lido no mobile.
+4. Os links, categorias e lembretes são mesclados (desktop → mobile). Mantemos IDs existentes e unimos itens diferentes.
