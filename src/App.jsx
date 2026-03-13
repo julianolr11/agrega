@@ -1837,6 +1837,14 @@ function App() {
     setShowReminderModal(true)
   }
 
+  const openStandaloneReminder = () => {
+    setReminderEditTarget(null)
+    const today = new Date().toISOString().slice(0, 10)
+    setReminderForm({ subject: '', date: today, linkId: '', linkToggle: false })
+    setReminderError('')
+    setShowReminderModal(true)
+  }
+
   const hydrateModalPreview = useCallback(async (url) => {
     const baseThumb = getThumbnailUrl(url)
     const baseFavicon = getFaviconUrl(url)
@@ -2458,6 +2466,7 @@ function App() {
           onChange={setFormData}
           onClose={handleCloseModal}
           onSubmit={handleSaveLink}
+          onOpenReminder={openStandaloneReminder}
           t={t}
         />
       )}
@@ -2625,7 +2634,7 @@ function PairingModal({ pin, host, port, dataString, onClose, onCopy, toast, t }
   )
 }
 
-function Modal({ pendingUrl, pendingPreview, categories, formData, onChange, onClose, onSubmit, t }) {
+function Modal({ pendingUrl, pendingPreview, categories, formData, onChange, onClose, onSubmit, onOpenReminder, t }) {
   return (
     <div
       className="modal-backdrop"
@@ -2695,6 +2704,10 @@ function Modal({ pendingUrl, pendingPreview, categories, formData, onChange, onC
               {t('add')}
             </button>
           </div>
+
+          <button type="button" className="ghost" onClick={onOpenReminder}>
+            {t('reminderNew')}
+          </button>
         </form>
       </div>
     </div>
