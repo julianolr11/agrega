@@ -419,12 +419,23 @@ const isValidUrl = (value) => {
   }
 }
 
+const normalizeUrlInput = (value = '') => {
+  const trimmed = value.trim()
+  if (!trimmed) return ''
+  if (isValidUrl(trimmed)) return trimmed
+  const withoutScheme = trimmed.replace(/^https?:\/\//i, '')
+  const withHttps = `https://${withoutScheme}`
+  if (isValidUrl(withHttps)) return withHttps
+  return ''
+}
+
 const YT_ICON = 'https://icons.duckduckgo.com/ip3/youtube.com.ico'
 const TIKTOK_ICON = 'https://www.tiktok.com/favicon.ico'
 const IG_ICON = 'https://icons.duckduckgo.com/ip3/instagram.com.ico'
 
 const getYouTubeThumbnail = (url) => {
-  // Use icon instead of thumbnails (including shorts)
+  // Keep as icon fallback for YouTube hosts only
+  if (!isYouTubeUrl(url)) return ''
   return YT_ICON
 }
 
@@ -637,8 +648,7 @@ const fetchOgImage = async (url) => {
 }
 
 const getThumbnailUrl = (url) => {
-  const yt = getYouTubeThumbnail(url)
-  if (yt) return yt
+  if (isYouTubeUrl(url)) return getYouTubeThumbnail(url)
   if (isInstagramUrl(url)) return IG_ICON
   if (isTikTokUrl(url)) return TIKTOK_ICON
   if (isMercadoLivreUrl(url)) return 'https://icons.duckduckgo.com/ip3/mercadolivre.com.br.ico'
@@ -1160,8 +1170,9 @@ function App() {
       setError(t('addLinkErrorEmpty'))
       return
     }
-    if (isValidUrl(trimmed)) {
-      beginLinkFlow(trimmed)
+    const normalizedUrl = normalizeUrlInput(trimmed)
+    if (normalizedUrl) {
+      beginLinkFlow(normalizedUrl)
     } else {
       beginTextFlow(trimmed)
     }
@@ -1584,6 +1595,7 @@ function App() {
 
     const targetType = editTarget?.type || editForm.type || 'link'
     const nextUrl = targetType === 'image' ? editTarget.url : editForm.url.trim()
+    const normalizedUrl = targetType === 'image' ? nextUrl : (normalizeUrlInput(nextUrl) || nextUrl)
     const nextContent = targetType === 'text' ? (editForm.content || editTarget.content || '') : ''
 
     setLinks((prev) => prev.map((item) => {
@@ -1597,7 +1609,7 @@ function App() {
             : targetType === 'text'
               ? t('defaultTextTitle')
               : t('defaultLinkTitle')),
-        url: nextUrl,
+        url: normalizedUrl,
         category: normalizedCategory,
         thumbnail: targetType === 'image' ? item.thumbnail : getThumbnailUrl(nextUrl),
         favicon: targetType === 'image' ? '' : getFaviconUrl(nextUrl),
@@ -1800,10 +1812,11 @@ function App() {
       const text = event.clipboardData?.getData('text')?.trim()
       if (!text) return
 
-      if (isValidUrl(text)) {
+      const normalizedUrl = normalizeUrlInput(text)
+      if (normalizedUrl) {
         event.preventDefault()
-        setLinkInput(text)
-        beginLinkFlow(text)
+        setLinkInput(normalizedUrl)
+        beginLinkFlow(normalizedUrl)
         return
       }
 
@@ -2293,9 +2306,7 @@ function App() {
                                   {link.title}
                                 </a>
                               </h3>
-                              {link.type === 'text' && (
-                                <p className="text-snippet">{getTextSnippet(link.content || link.url || '')}</p>
-                              )}
+                              {link.type === 'text' && null}
                               <div className="link-meta">
                                 <div className="link-meta__info">
                                   <span className="favicon-pill">
