@@ -429,6 +429,14 @@ const normalizeUrlInput = (value = '') => {
   return ''
 }
 
+const getHost = (url) => {
+  try {
+    return new URL(url).hostname
+  } catch (error) {
+    return ''
+  }
+}
+
 const YT_ICON = 'https://icons.duckduckgo.com/ip3/youtube.com.ico'
 const TIKTOK_ICON = 'https://www.tiktok.com/favicon.ico'
 const IG_ICON = 'https://icons.duckduckgo.com/ip3/instagram.com.ico'
@@ -701,6 +709,55 @@ const getSafeThumbnail = (link) => {
   if (isYouTubeUrl(link.url)) return YT_ICON
   if (link.thumbnail) return link.thumbnail
   return getThumbnailUrl(link.url)
+}
+
+const sanitizeLinkBranding = (link) => {
+  if (!link || link.type !== 'link') return link
+
+  const host = getHost(link.url)
+  let next = { ...link }
+
+  if (isTikTokUrl(link.url)) {
+    next.thumbnail = TIKTOK_ICON
+    next.favicon = TIKTOK_ICON
+    return next
+  }
+
+  if (isYouTubeUrl(link.url)) {
+    next.thumbnail = YT_ICON
+    next.favicon = YT_ICON
+    return next
+  }
+
+  if (isInstagramUrl(link.url)) {
+    next.thumbnail = IG_ICON
+    next.favicon = IG_ICON
+    return next
+  }
+
+  if (isMercadoLivreUrl(link.url)) {
+    next.thumbnail = getThumbnailUrl(link.url) || next.thumbnail || 'https://icons.duckduckgo.com/ip3/mercadolivre.com.br.ico'
+    next.favicon = getFaviconUrl(link.url) || next.favicon || 'https://icons.duckduckgo.com/ip3/mercadolivre.com.br.ico'
+  }
+
+  const foreignBrand = (value) => (next.thumbnail?.includes(value) || next.favicon?.includes(value))
+  if (host && !isTikTokUrl(link.url) && foreignBrand('tiktok')) {
+    next.thumbnail = getThumbnailUrl(link.url) || ''
+    next.favicon = getFaviconUrl(link.url) || ''
+  }
+  if (host && !isYouTubeUrl(link.url) && foreignBrand('youtube')) {
+    next.thumbnail = getThumbnailUrl(link.url) || ''
+    next.favicon = getFaviconUrl(link.url) || ''
+  }
+  if (host && !isInstagramUrl(link.url) && foreignBrand('instagram')) {
+    next.thumbnail = getThumbnailUrl(link.url) || ''
+    next.favicon = getFaviconUrl(link.url) || ''
+  }
+
+  if (!next.thumbnail) next.thumbnail = getThumbnailUrl(link.url)
+  if (!next.favicon) next.favicon = getFaviconUrl(link.url)
+
+  return next
 }
 
 const getTextSnippet = (value = '') => {
@@ -1510,6 +1567,7 @@ function App() {
       imageData: item.imageData || '',
       mimeType: item.mimeType || 'image/png',
     }
+    return sanitizeLinkBranding(base)
   }
 
   const handleCopy = async (link) => {
