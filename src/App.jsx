@@ -1156,6 +1156,17 @@ function App() {
     })
   }, [links, refreshMercadoLivreThumb, refreshInstagramThumb, refreshGenericPreview, refreshTikTokThumb, refreshYouTubeThumb])
 
+  useEffect(() => {
+    let changed = false
+    const sanitized = links.map((link) => {
+      const next = sanitizeLinkBranding(link)
+      if (next !== link && JSON.stringify(next) !== JSON.stringify(link)) changed = true
+      return next
+    })
+    if (changed) setLinks(sanitized)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [links])
+
   const categoryCounts = useMemo(() => {
     const counts = categories.reduce((acc, category) => {
       acc[category] = 0
@@ -1394,7 +1405,7 @@ function App() {
 
     setLinks((prev) => [
       ...prev,
-      {
+      sanitizeLinkBranding({
         id,
         title,
         url: pendingUrl,
@@ -1403,7 +1414,7 @@ function App() {
         thumbnail: getThumbnailUrl(pendingUrl),
         favicon: getFaviconUrl(pendingUrl),
         type: 'link',
-      },
+      }),
     ])
 
     refreshMercadoLivreThumb(id, pendingUrl)
@@ -1686,7 +1697,7 @@ function App() {
         base.url = nextContent
       }
 
-      return base
+      return sanitizeLinkBranding(base)
     }))
 
     if (targetType !== 'image') {
